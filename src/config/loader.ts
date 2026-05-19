@@ -14,7 +14,7 @@ export const CONFIG_FILENAME = 'config.json';
 export const DEFAULT_CONFIG: AppConfig = {
   models: [],
   server: {
-    port: 8788,
+    port: 28788,
     host: '127.0.0.1',
   },
   adversarial: {

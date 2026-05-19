@@ -4,108 +4,107 @@
 
 **Multiple LLMs answer the same question, audit each other, ground claims in tools, and only keep what survives scrutiny.**
 
-让多个 LLM 围绕同一个问题独立作答 → 互相挑刺 → 调用外部工具求证 → 错的主动认错 → 投票收敛 — 比单模型答案更接近"真"。
-
 [![CI](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-43853d.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
+**English** · [简体中文](README.zh-CN.md)
+
 </div>
 
 ---
 
-## 项目定位
+## What is this
 
-**AAP（AI Adversarial Protocol）** 是一个 Node.js CLI + HTTP Server，让你把任意数量、任意服务商的 LLM 编入一个**对抗式协作流水线**：
+**AAP** (AI Adversarial Protocol) is a Node.js CLI + HTTP server that wires any number of LLMs from any vendor into an **adversarial collaboration pipeline**:
 
 ```
                   ┌──── Phase 1: Generating ────┐
-                  │  N 个模型并行独立作答         │
+                  │  N models answer in parallel │
                   └──────────────┬───────────────┘
                                  ▼
-                  ┌──── Phase 2: Tool Grounding (可选) ─┐
-                  │  search / fetch_url / exec_python    │
-                  │  错了的模型 concede() 主动退出       │
-                  └──────────────┬───────────────────────┘
+                  ┌──── Phase 2: Tool Grounding (optional) ──┐
+                  │  search / fetch_url / exec_python         │
+                  │  models proven wrong → concede() and exit │
+                  └──────────────┬────────────────────────────┘
                                  ▼
                   ┌──── Phase 3: Auto-Challenge ────┐
-                  │  每个模型审计其他模型的输出      │
-                  │  标注事实错误/逻辑漏洞/遗漏      │
+                  │  every model audits every other  │
+                  │  flags factual / logical / gaps  │
                   └──────────────┬───────────────────┘
                                  ▼
                   ┌──── Phase 4: Voting ────────────┐
-                  │  多模式投票（majority/weighted/   │
-                  │  consensus/unanimous）           │
-                  │  共识不足 → 标"需人工"，不强造结果 │
+                  │  majority / weighted / consensus │
+                  │  / unanimous                     │
+                  │  no consensus → "needs review"   │
+                  │  (no fake winner)                │
                   └──────────────────────────────────┘
                                  │
                                  ▼
-                  Multi-round（默认 2 轮）：第二轮 prompt
-                  含上一轮回答 + 挑刺，让模型修正
+                  Multi-round (default 2): round-2 prompt
+                  carries round-1 responses + critiques.
 ```
 
-**为什么要做对抗：** 单 LLM 的 RLHF 偏置会让它对自己不知道的事情自信地编造。多 LLM 投票天然放大同向偏置（训练数据重叠 → 错得一致 → 多数票通过）。引入**外部工具接地** + **主动认错** + **同行 audit** 是把"求真"放在"听起来完整"之上的工程化路径。
+**Why adversarial?** A single LLM's RLHF bias makes it confidently fabricate when it doesn't know. Naive multi-LLM voting amplifies same-direction bias (overlapping training data → same wrong answer → majority approves). Adding **external tool grounding** + **honest concession** + **peer audit** is an engineering path that puts *truth* above *sounding complete*.
 
 ---
 
 ## ✨ Features
 
-### 多模型对抗
-- 任意服务商混搭：OpenAI / Anthropic / Ollama 协议都支持，OpenAI 兼容代理（如 SiliconFlow、各种本地多模型网关）也走得通
-- **多轮对抗**：默认 2 轮，每轮看到上一轮的回答 + 挑刺，逐步收敛
-- **加权投票**：每个模型可设权重；模式可选 majority / weighted / consensus / unanimous
+### Multi-model adversarial loop
+- Mix any vendors: OpenAI / Anthropic / Ollama protocols, OpenAI-compatible proxies (SiliconFlow, local multi-model gateways) all work
+- **Multi-round**: 2 rounds by default; each round sees the previous round's answers and critiques to refine
+- **Weighted voting**: per-model weights; modes are majority / weighted / consensus / unanimous
 
-### 求真接地（Tier 3）
-- **工具调用** 由模型自主发起：
-  - `search` — 通过本地 SearXNG 搜索互联网
-  - `fetch_url` — 抓取 URL 验证内容
-  - `exec_python` — 沙箱执行（一次性 Docker，`--network none`，stdlib only）
-  - `concede` — **主动认错退出**：模型见到证据后承认错误、可选 defer to 同行
-- **Capability probe**：自动探测每个模型对 tool-calling 的真实支持，结果缓存 24h；不可靠的模型在工具运行时被自动剔除
-- **当前日期注入**：每个 prompt 自动带 system 消息告知"今天是 X 年 X 月 X 日"，避免模型把训练截止时间当成"现在"
-- **求真 > 收敛**：投票若不达共识，输出"需人工审查"而非强造 winner
+### Truth grounding (Tier 3)
+- **Tools** invoked by the model itself:
+  - `search` — local SearXNG search
+  - `fetch_url` — fetch a URL and extract readable text
+  - `exec_python` — sandboxed Python (one-shot Docker container, `--network none`, stdlib only)
+  - `concede` — **honest withdrawal**: a model that sees evidence proving it wrong can declare so and optionally `defer_to` a peer
+- **Capability probe**: each model is tested for genuine tool-calling support; results cached 24 h, unsupported models are auto-dropped when tools are active
+- **Current-date system message**: every prompt is told today's ISO date so models don't fall back to their training cutoff
+- **Truth > convergence**: if voting can't reach the threshold the system outputs "needs human review" rather than fabricating a winner
 
-### 可观察性
-- **TUI**（基于 ink）实时显示：
-  - 每个模型的流式输出 + token 计数
-  - 互相挑刺（类型/严重性/置信度/原文片段/理由）
-  - 工具调用面板（哪个模型调了什么、ok/失败、结果预览）
-  - Concession 高亮区块
-  - 投票分布
-  - 多轮进度
-- **审计评分**：每个模型的累计 reliability score（A+ ~ D），持久化在 `~/.aap/audit-metrics.json`
+### Observability (TUI)
+- Live streaming output and token counts per model
+- Cross-model challenges (type / severity / confidence / cited fragment / reason)
+- **Tool-call panel**: which model called which tool, ok/✗, result preview
+- Concession block (purple ⚐) for honest withdrawals
+- Voting distribution
+- Multi-round progress indicator
 
-### 部署灵活
-- 单一进程同时跑 TUI + HTTP Server
-- HTTP 接口兼容 OpenAI `/v1/chat/completions` 和 Anthropic `/v1/messages`
-- 可作为 Claude Code / Cursor / 自研 agent 的"上游"——所有外部请求自动走对抗，TUI 实时可见
+### Deployment
+- One process runs both TUI and HTTP server
+- HTTP server is compatible with OpenAI `/v1/chat/completions` and Anthropic `/v1/messages`
+- Drop-in upstream for Claude Code / Cursor / your own agent — every external request is run through the adversarial pipeline; the TUI sees them live
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. 安装
+### 1. Install
 
 ```bash
 git clone git@github.com:laochendeai/ai-adversarial-protocol.git
 cd ai-adversarial-protocol
 npm install
 npm run build
-npm link               # 全局可用 aap 命令（可选）
+npm link               # makes `aap` globally available (optional)
 ```
 
-或开发模式直接跑：`npm run dev`。
+Or run from source: `npm run dev`.
 
-### 2. 配置模型（**交互式，最简单**）
+### 2. Add models (**interactive — easiest**)
 
 ```bash
 aap config add
 ```
 
-会顺序问你：endpoint base URL → 协议 → API key → 自动调上游 `/v1/models` 列出可用模型 → 多选添加。一次可加多个 endpoint。
+It walks you through: endpoint base URL → protocol → API key → automatically calls the upstream `/v1/models` and lists what's available → pick. You can chain multiple endpoints in one session.
 
-也支持脚本式：
+Scripted form is also supported:
 
 ```bash
 aap config add deepseek-v3 \
@@ -115,84 +114,84 @@ aap config add deepseek-v3 \
   --model deepseek-ai/DeepSeek-V3.2
 ```
 
-或纯发现（不写入）：
+Pure discovery (print only, don't save):
 
 ```bash
 aap config discover --base-url https://api.example.com/v1 --protocol openai --api-key sk-...
 ```
 
-### 3. （可选）启用工具求真模式
+### 3. (Optional) Enable truth-grounding mode
 
 ```bash
-# 部署本地 SearXNG（搜索后端）
+# Bring up the local SearXNG search backend
 bash scripts/start-searxng.sh
 
-# 探测每个模型的 tool-calling 支持
+# Probe each model's tool-calling support
 aap probe
 
-# 看探测结果 + 工具配置
+# Inspect probe results + tool config
 aap tools list
 
-# 编辑 ~/.aap/config.json，把 adversarial.tools.enabled 改 true
+# Edit ~/.aap/config.json and set adversarial.tools.enabled to true
 ```
 
-### 4. 启动
+### 4. Run
 
 ```bash
-aap                      # TUI + Server 一起跑
-aap --no-tui             # 只 Server（headless 部署）
-aap --no-server          # 只 TUI
-aap --port 9000          # 改端口
+aap                      # TUI + Server
+aap --no-tui             # Headless server only
+aap --no-server          # TUI only
+aap --port 9000          # Override port
 ```
 
 ---
 
-## 🖥 TUI 操作
+## 🖥 TUI keys
 
-| 键 | 动作 |
+| Key | Action |
 |---|---|
-| `n` | 新建对抗（先选模型，再输入问题） |
-| `a` | 添加模型（直接调出发现界面） |
-| `↑` / `↓` | 在 run 列表里切换 |
-| `q` / `Ctrl+C` | 退出 |
+| `n` | New run (pick models, then type the question) |
+| `a` | Add a model (opens the discovery flow) |
+| `↑` / `↓` | Switch between runs |
+| `q` / `Ctrl+C` | Exit |
 
-`n` 弹窗里：空格切换模型勾选，Enter 确认 → 输入问题 → Enter 触发。
+The `n` modal: space to toggle a model selection, Enter to confirm → type the question → Enter to dispatch.
 
-按 `n` 提交后会先跑 **preflight**（去重 endpoint、ping `/v1/models` 验证模型可用性）。失败时给三选项：drop 失败的、放弃、强制继续。
+After Enter, AAP runs **preflight** (dedupes endpoints, pings `/v1/models` to verify each chosen model is alive). If anything fails you get three options: drop the failing models, abort, or continue anyway.
 
 ---
 
 ## 🌐 HTTP API
 
-服务默认监听 `http://127.0.0.1:8788`。`model` 字段决定行为：
+The server listens on `http://127.0.0.1:28788` by default. The `model` field decides what happens:
 
-| `model` 值 | 行为 |
+| `model` value | Behavior |
 |---|---|
-| `adversarial:all` | 调用所有 enabled 模型，并行返回 |
-| `adversarial:vote` | 全部模型 + 投票，主响应是获胜方答案 |
-| `adversarial:debate` | 全部模型 + 挑刺，主响应是合并的多模型输出 |
-| `adversarial:m1,m2,m3` | 指定参与的模型 id |
-| `qwen-235b` | 直接透传，不做对抗 |
+| `adversarial:all` | Call every enabled model and return them in parallel |
+| `adversarial:vote` | All models + voting; the primary response is the winner's |
+| `adversarial:debate` | All models + cross-challenge; primary response is a merged multi-model output |
+| `adversarial:m1,m2,m3` | Specific model ids |
+| `qwen-235b` | Pass-through, no adversarial |
 
-### OpenAI 兼容
+### OpenAI-compatible
 
 ```bash
-curl -X POST http://127.0.0.1:8788/v1/chat/completions \
+curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "adversarial:vote",
-    "messages": [{"role":"user","content":"用一句话解释熵"}]
+    "messages": [{"role":"user","content":"Explain entropy in one sentence"}]
   }'
 ```
 
-响应是标准 OpenAI Chat Completion 格式，多了一个 `x_adversarial` 扩展字段（含 responses / challenges / voting / 工具调用日志）。
+The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, challenges, voting, and tool-call logs.
 
-流式：加 `"stream": true`，按标准 OpenAI SSE 输出，每个模型用 `## modelId` markdown header 分隔；最后一个 chunk 携带 `x_adversarial`，再发 `data: [DONE]`。
+Streaming: add `"stream": true`, get standard OpenAI SSE; per-model output is separated with `## modelId` markdown headers; the final chunk carries `x_adversarial`, then `data: [DONE]`.
 
-### Anthropic 兼容
+### Anthropic-compatible
 
 ```bash
-curl -X POST http://127.0.0.1:8788/v1/messages \
+curl -X POST http://127.0.0.1:28788/v1/messages \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -202,107 +201,106 @@ curl -X POST http://127.0.0.1:8788/v1/messages \
   }'
 ```
 
-返回标准 Anthropic Message 格式（`type: "message"`, `content: [{type:"text",...}]`），同样带 `x_adversarial`。流式遵循 Anthropic 的 `message_start` / `content_block_delta` / `message_delta` / `message_stop` 协议。
+Returns a standard Anthropic Message (`type: "message"`, `content: [{type:"text",...}]`) with `x_adversarial`. Streaming follows Anthropic's `message_start` / `content_block_delta` / `message_delta` / `message_stop` protocol.
 
-### 接入 Claude Code
+### Plug into Claude Code
 
 ```bash
-export ANTHROPIC_BASE_URL=http://127.0.0.1:8788
+export ANTHROPIC_BASE_URL=http://127.0.0.1:28788
 export ANTHROPIC_AUTH_TOKEN=any
 claude
 ```
 
-或在 `~/.claude/settings.json` 里写死。Claude Code 的每次请求会被多模型对抗后再返回，TUI 可以同步看到。
+Or pin it in `~/.claude/settings.json`. Every Claude Code request will run through the adversarial pipeline; the TUI sees them in real time.
 
 ---
 
-## 🧰 命令参考
+## 🧰 Command reference
 
 ```
-aap                              # 默认：TUI + Server
-aap --no-tui|--no-server         # 单独模式
+aap                              # default: TUI + Server
+aap --no-tui|--no-server         # one or the other
 aap --port <n> | --host <addr>
 
-aap config init                  # 初始化配置
-aap config list                  # 列出所有模型
-aap config add [<id>]            # 添加（带 id = 脚本式；不带 id = 交互式）
-aap config discover --...        # 探活 endpoint，列出可用模型
-aap config remove <id>           # 删除
-aap config enable|disable <id>   # 启停
-aap config path                  # 打印 config.json 路径
+aap config init                  # initialize config
+aap config list                  # list all models
+aap config add [<id>]            # add (with id = scripted; without id = interactive)
+aap config discover --...        # probe an endpoint, list available models
+aap config remove <id>           # delete
+aap config enable|disable <id>   # toggle
+aap config path                  # print config.json path
 
-aap probe [ids...] [--all]       # 探测 tool-calling 能力
-aap tools list                   # 显示工具配置 + 模型能力状态
+aap probe [ids...] [--all]       # probe tool-calling support
+aap tools list                   # show tool config + per-model capability
 ```
 
 ---
 
-## 📁 持久化
+## 📁 Persistence
 
-`~/.aap/`：
-- `config.json` — 模型 + 服务器配置
-- `audit-metrics.json` — 每个模型的累计 reliability score
-- `capabilities.json` — tool-calling 能力探测缓存（TTL 24h）
+Under `~/.aap/`:
+- `config.json` — models + server config
+- `audit-metrics.json` — cumulative reliability score per model
+- `capabilities.json` — tool-calling capability cache (TTL 24 h)
 
 ---
 
-## 🏗 架构
+## 🏗 Architecture
 
 ```
-┌─────────────────── aap 进程 ───────────────────┐
+┌─────────────────── aap process ────────────────┐
 │                                                │
 │   TUI (ink)          HTTP Server (Hono)        │
 │      ↑                    ↑                    │
-│      └────── EngineHub ───┘  ← 全局事件总线     │
-│                  ↓                              │
-│        AdversarialEngine (per-run)              │
+│      └────── EngineHub ───┘  ← global event bus│
+│                  ↓                             │
+│        AdversarialEngine (per-run)             │
 │           ↓        ↓        ↓                  │
 │      ToolRegistry  ModelClient  ConcessionTracker
-│           ↓             ↓                       │
+│           ↓             ↓                      │
 │      [search, fetch, exec, concede]            │
-│                         ↓                       │
+│                         ↓                      │
 │           OpenAI / Anthropic / Ollama          │
 └────────────────────────────────────────────────┘
 ```
 
-详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+Details: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-## 🛠 开发
+## 🛠 Development
 
 ```bash
-npm run dev              # tsx src/cli.ts（直接跑源码）
-npm run build            # tsup 打包到 dist/cli.js
+npm run dev              # tsx src/cli.ts (run from source)
+npm run build            # tsup → dist/cli.js
 npm run type-check       # tsc --noEmit
 npm test                 # vitest --run
-npm run test:watch       # vitest 监视模式
+npm run test:watch       # vitest watch mode
 ```
 
-构建产物：单一 ~150 KB ESM 文件 + sourcemap，运行时只依赖 `react/ink/ink-*`（external）。
+The build produces a single ~150 KB ESM file plus sourcemap; runtime depends only on `react/ink/ink-*` (external).
 
-测试规则：见 [TESTING.md](TESTING.md)。  
-项目协作约定：见 [AGENTS.md](AGENTS.md) 和 [CONTRIBUTING.md](CONTRIBUTING.md)。
+Test conventions: [TESTING.md](TESTING.md). Project agreements: [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
 ## 🗺 Roadmap
 
-近期：
-- [ ] Anthropic / Ollama 协议的 tool-calling 适配（目前只 OpenAI）
-- [ ] Challenge 阶段的 tool-calling（让挑刺者也能查证据反驳）
-- [ ] `streamWithTools` final content 合并 bug 修复
-- [ ] 区分"模型不支持 tool-calling" vs "上游临时不可用"，避免后者被 24h cache 冻死
+Near-term:
+- [ ] Anthropic / Ollama tool-calling adapters (currently OpenAI only)
+- [ ] Tool-calling during the challenge phase (let challengers cite evidence)
+- [ ] Fix `streamWithTools` final-content merge bug
+- [ ] Distinguish "model doesn't support tool-calling" from "upstream temporarily down" so the latter isn't frozen by the 24 h cache
 
-中期：
-- [ ] 独立 judge model（避免 self-grading bias）
-- [ ] 收敛检测（多轮中根据高 severity challenge 数量动态决定停止）
-- [ ] Bayesian 投票聚合（log-pooling，替代算术加权）
-- [ ] TUI: 让用户在 InputModal 里自定义本次 run 的轮数
+Mid-term:
+- [ ] Independent judge model (avoid self-grading bias)
+- [ ] Convergence detection (stop early when high-severity challenges drop in multi-round)
+- [ ] Bayesian voting aggregation (log-pool replaces arithmetic weighting)
+- [ ] TUI: let users pick the round count per run from the input modal
 
-长期：
-- [ ] 立场分配（强制部分模型作 steelman 反方）
-- [ ] 可证伪条件：每个 claim 必须带"什么观察会推翻它"
+Long-term:
+- [ ] Position assignment (force some models to steelman the opposing view)
+- [ ] Falsifiability requirement: every claim ships with "what observation would refute this"
 
 ---
 
@@ -314,7 +312,7 @@ npm run test:watch       # vitest 监视模式
 
 <div align="center">
 
-**做这个项目的初衷：让"多模型协作"从直觉式的"听起来更稳妥"变成可验证的"求真工程"。**
+**Why this project exists: turn "multi-model collaboration" from an intuition that says "this should sound more solid" into a verifiable engineering practice for finding truth.**
 
 If you find this useful, a ⭐ on GitHub helps a lot.
 

@@ -1,49 +1,51 @@
 # Security Policy
 
-## Supported Versions
+> **English** · [简体中文](SECURITY.zh-CN.md)
 
-只有 main 分支接收安全更新。Pre-1.0 阶段不维护多版本回溯。
+## Supported versions
+
+Only the `main` branch receives security updates. Pre-1.0 we don't backport to old tags.
 
 | Version | Supported |
 | ------- | --------- |
 | `main` (HEAD) | ✅ |
 | Older tags / forks | ❌ |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-**请不要在 public issue 里披露安全问题。**
+**Please don't disclose security issues in public issues.**
 
-私下报告渠道（任选其一）：
+Private channels (pick one):
 
-1. **GitHub Security Advisory**（推荐）  
-   访问 https://github.com/laochendeai/ai-adversarial-protocol/security/advisories/new 。GitHub 会私下发给维护者，可以协作修复 + 协调披露。
+1. **GitHub Security Advisory** (recommended)
+   Go to https://github.com/laochendeai/ai-adversarial-protocol/security/advisories/new . GitHub delivers it privately to the maintainer and we can coordinate on a fix and disclosure.
 
-2. **GitHub 私信**  
-   联系 [@laochendeai](https://github.com/laochendeai)。
+2. **GitHub DM**
+   Reach out to [@laochendeai](https://github.com/laochendeai).
 
-报告里包含：
-- 问题描述 + 严重程度判断
-- 复现步骤（最好附最小复现代码 / 命令）
-- 环境信息（Node 版本、OS、AAP 版本 / commit）
-- 你认为合理的修复方向（可选）
+Include in the report:
+- Description and your assessment of severity
+- Reproduction steps (ideally a minimal repro snippet/command)
+- Environment (Node version, OS, AAP version / commit)
+- Suggested fix direction (optional)
 
 ## Response
 
-| 时间 | 动作 |
-| ---- | ---- |
-| 48 小时内 | 收到确认 |
-| 7 天内 | 给出严重性评估 + 计划 |
-| 30 天内（一般） | 修复发布；高危情况下会更快 |
+| Time | Action |
+| ---- | ------ |
+| 48 hours | Acknowledgement |
+| 7 days | Severity assessment + plan |
+| 30 days (typical) | Fix shipped; faster for high severity |
 
-## 关注重点
+## Risk surface we actively care about
 
-这个项目**主动**关注以下风险面，欢迎针对性测试：
+We welcome targeted testing in these areas:
 
-- **Tool sandbox 越权**：`exec_python` 应该完全网络隔离 + 文件系统隔离；如果发现可逃逸或访问宿主网络，请立刻报告。
-- **Prompt 注入 → 工具滥用**：恶意问题导致模型调用 `exec_python` 执行恶意代码（即使在沙箱里）造成资源耗尽，或调用 `fetch_url` 探测内网。
-- **凭证泄漏**：API key、配置文件路径、HTTP 错误回显里的敏感字段。
-- **HTTP API 输入验证**：`/v1/chat/completions` 解析 `model` 字段时的注入 / DoS。
+- **Tool sandbox escape**: `exec_python` is supposed to run with no network and no host filesystem access. If you find a way out — to the host network or filesystem — please report immediately.
+- **Prompt injection → tool abuse**: malicious questions causing the model to invoke `exec_python` with destructive code (even sandboxed it can DoS), or to use `fetch_url` to probe internal networks.
+- **Credential leakage**: API keys, config file paths, sensitive fields echoed in HTTP error responses.
+- **HTTP API input validation**: injection / DoS via the `model` field in `/v1/chat/completions`.
 
-## 致谢
+## Acknowledgements
 
-负责任披露的报告者会被记入 CHANGELOG 的 Security 段落（如愿意公开）。
+Reporters of responsibly disclosed vulnerabilities are credited in the CHANGELOG's Security section (if they wish).

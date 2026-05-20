@@ -2,7 +2,43 @@
   "name": "ai-adversarial-protocol",
   "version": "0.1.0",
   "description": "Multi-LLM adversarial protocol with truth-grounding via tools, concession, and capability probing — CLI + TUI + OpenAI/Anthropic-compatible HTTP server",
+  "license": "MIT",
   "type": "module",
+  "homepage": "https://github.com/laochendeai/ai-adversarial-protocol#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laochendeai/ai-adversarial-protocol.git"
+  },
+  "bugs": {
+    "url": "https://github.com/laochendeai/ai-adversarial-protocol/issues"
+  },
+  "keywords": [
+    "llm",
+    "ai-agents",
+    "multi-agent",
+    "openai",
+    "anthropic",
+    "ollama",
+    "tool-calling",
+    "tui",
+    "hono",
+    "cli",
+    "typescript",
+    "ai-debate",
+    "fact-checking",
+    "searxng"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CHANGELOG.zh-CN.md"
+  ],
   "bin": {
     "aap": "dist/cli.js"
   },

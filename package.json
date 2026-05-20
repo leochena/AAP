@@ -1,6 +1,6 @@
 {
   "name": "ai-adversarial-protocol",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Multi-LLM adversarial protocol with truth-grounding via tools, concession, and capability probing — CLI + TUI + OpenAI/Anthropic-compatible HTTP server",
   "license": "MIT",
   "type": "module",

@@ -86,6 +86,15 @@
 
 ### 1. Install
 
+From npm:
+
+```bash
+npm install -g ai-adversarial-protocol
+aap --help
+```
+
+Or from source:
+
 ```bash
 git clone git@github.com:laochendeai/ai-adversarial-protocol.git
 cd ai-adversarial-protocol
@@ -94,7 +103,7 @@ npm run build
 npm link               # makes `aap` globally available (optional)
 ```
 
-Or run from source: `npm run dev`.
+Run from source without linking: `npm run dev`.
 
 ### 2. Add models (**interactive — easiest**)
 
@@ -281,6 +290,38 @@ npm run test:watch       # vitest watch mode
 The build produces a single ~150 KB ESM file plus sourcemap; runtime depends only on `react/ink/ink-*` (external).
 
 Test conventions: [TESTING.md](TESTING.md). Project agreements: [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## 📦 Publishing
+
+This package is published on npm as [`ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol).
+
+Manual install:
+
+```bash
+npm install -g ai-adversarial-protocol
+```
+
+Release publishing uses npm Trusted Publishing (OIDC), not `NPM_TOKEN`.
+
+Required npm package settings:
+
+- Provider: GitHub Actions
+- Organization/user: `laochendeai`
+- Repository: `ai-adversarial-protocol`
+- Workflow filename: `release.yml`
+- Environment: empty
+- Publishing access: `Require two-factor authentication and disallow tokens (recommended)`
+
+After bumping the version on `main`, push a `v*` tag to publish:
+
+```bash
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+The release workflow runs type-check, tests, build, then `npm publish --access public`.
 
 ---
 

@@ -71,6 +71,30 @@ npm run build        # tsup → dist/cli.js
 
 涉及架构、引擎流程、事件契约、HTTP API 形状的改动，先开 issue 讨论再写代码，避免做白工。
 
+## 发布与 npm
+
+npm 包是公开包：[`ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol)。
+
+发布流程使用 npm Trusted Publishing (OIDC)，不使用长期 npm token。
+
+npm package settings 必须和 workflow 对齐：
+
+- Provider: GitHub Actions
+- Organization/user: `laochendeai`
+- Repository: `ai-adversarial-protocol`
+- Workflow filename: `release.yml`
+- Environment: 留空
+- Publishing access: `Require two-factor authentication and disallow tokens (recommended)`
+
+发版检查清单：
+
+1. 提升 `package.json` 和 `package-lock.json` 版本。
+2. 运行 `npm run type-check`、`npm test`、`npm run build`、`npm pack --dry-run`。
+3. 通过 PR 合并到 `main`。
+4. 从 `main` 推送 `v*` tag。
+
+tag 触发的 workflow 会重新跑检查，并执行 `npm publish --access public`。
+
 ## 安全相关
 
 发现安全漏洞 → 看 [SECURITY.md](SECURITY.md)，**不要直接开 public issue**。

@@ -89,6 +89,15 @@
 
 ### 1. 安装
 
+从 npm 安装：
+
+```bash
+npm install -g ai-adversarial-protocol
+aap --help
+```
+
+或从源码安装：
+
 ```bash
 git clone git@github.com:laochendeai/ai-adversarial-protocol.git
 cd ai-adversarial-protocol
@@ -97,7 +106,7 @@ npm run build
 npm link               # 全局可用 aap 命令（可选）
 ```
 
-或开发模式直接跑：`npm run dev`。
+不 link 的源码运行方式：`npm run dev`。
 
 ### 2. 配置模型（**交互式，最简单**）
 
@@ -285,6 +294,38 @@ npm run test:watch       # vitest 监视模式
 
 测试规则：见 [TESTING.md](TESTING.md)。
 项目协作约定：见 [AGENTS.md](AGENTS.md) 和 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
+## 📦 发布
+
+本包已发布到 npm：[`ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol)。
+
+安装：
+
+```bash
+npm install -g ai-adversarial-protocol
+```
+
+发布流程使用 npm Trusted Publishing (OIDC)，不使用 `NPM_TOKEN`。
+
+npm package settings 中需要这样配置：
+
+- Provider: GitHub Actions
+- Organization/user: `laochendeai`
+- Repository: `ai-adversarial-protocol`
+- Workflow filename: `release.yml`
+- Environment: 留空
+- Publishing access: `Require two-factor authentication and disallow tokens (recommended)`
+
+在 `main` 上提升版本号后，推送 `v*` tag 即可发布：
+
+```bash
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+Release workflow 会依次执行 type-check、tests、build，然后执行 `npm publish --access public`。
 
 ---
 

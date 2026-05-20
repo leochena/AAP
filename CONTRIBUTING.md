@@ -71,6 +71,30 @@ Example: `feat(tools): add concede tool for honest withdrawal`
 
 For changes that touch architecture, the engine flow, event contracts, or the HTTP API shape: open an issue first to discuss, then write the code. Saves throwaway work.
 
+## Releases and npm publishing
+
+The npm package is public and published as [`ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol).
+
+Publishing uses npm Trusted Publishing (OIDC), not long-lived npm tokens.
+
+npm package settings must match the workflow:
+
+- Provider: GitHub Actions
+- Organization/user: `laochendeai`
+- Repository: `ai-adversarial-protocol`
+- Workflow filename: `release.yml`
+- Environment: empty
+- Publishing access: `Require two-factor authentication and disallow tokens (recommended)`
+
+Release checklist:
+
+1. Bump `package.json` + `package-lock.json`.
+2. Run `npm run type-check`, `npm test`, `npm run build`, and `npm pack --dry-run`.
+3. Merge through PR.
+4. Push a `v*` tag from `main`.
+
+The tag-triggered workflow runs the same checks and publishes with `npm publish --access public`.
+
 ## Security
 
 If you find a security vulnerability, see [SECURITY.md](SECURITY.md). **Do not file a public issue.**

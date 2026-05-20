@@ -14,6 +14,7 @@ import React from 'react';
 import { render } from 'ink';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import packageJson from '../package.json';
 import { loadConfig, saveConfig, addModel, removeModel, updateModel, DEFAULT_STORAGE_DIR } from '@/config/loader';
 import { ModelConfig, ModelProtocol } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
@@ -27,7 +28,7 @@ const program = new Command();
 program
   .name('aap')
   .description('AI Adversarial Protocol — multi-model adversarial CLI/server')
-  .version('1.0.0');
+  .version(packageJson.version);
 
 program
   .option('--no-tui', '不启动交互式 TUI')

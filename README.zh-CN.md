@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/aap-hero.svg" alt="AI Adversarial Protocol" width="100%">
+
 # 🥊 AI Adversarial Protocol
 
 **Multiple LLMs answer the same question, audit each other, ground claims in tools, and only keep what survives scrutiny.**
@@ -7,11 +9,17 @@
 让多个 LLM 围绕同一个问题独立作答 → 互相挑刺 → 调用外部工具求证 → 错的主动认错 → 投票收敛 — 比单模型答案更接近"真"。
 
 [![CI](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/ai-adversarial-protocol.svg)](https://www.npmjs.com/package/ai-adversarial-protocol)
+[![npm downloads](https://img.shields.io/npm/dm/ai-adversarial-protocol.svg)](https://www.npmjs.com/package/ai-adversarial-protocol)
+[![GitHub release](https://img.shields.io/github/v/release/laochendeai/ai-adversarial-protocol.svg)](https://github.com/laochendeai/ai-adversarial-protocol/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-43853d.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![GitHub stars](https://img.shields.io/github/stars/laochendeai/ai-adversarial-protocol?style=social)](https://github.com/laochendeai/ai-adversarial-protocol/stargazers)
 
 [English](README.md) · **简体中文**
+
+[`npm install -g ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol) · [快速开始](#-quick-start) · [FAQ](docs/FAQ.zh-CN.md) · [路线图](docs/ROADMAP.zh-CN.md) · [支持](SUPPORT.md) · [贡献](CONTRIBUTING.zh-CN.md)
 
 </div>
 
@@ -48,6 +56,15 @@
 ```
 
 **为什么要做对抗：** 单 LLM 的 RLHF 偏置会让它对自己不知道的事情自信地编造。多 LLM 投票天然放大同向偏置（训练数据重叠 → 错得一致 → 多数票通过）。引入**外部工具接地** + **主动认错** + **同行 audit** 是把"求真"放在"听起来完整"之上的工程化路径。
+
+## 为什么是 AAP
+
+| 方案 | 常见问题 | AAP 的处理方式 |
+|---|---|---|
+| 单模型 | 回答很快，但自信幻觉难发现 | 把每个回答都当成需要被挑战的 claim |
+| 朴素多模型投票 | 训练数据重叠会导致一起错、一起投 | 要求互相挑刺、证据来源和明确的"需人工审查"状态 |
+| 只靠工具的 agent | 工具有帮助，但模型仍可能夸大证据 | 显示真实 tool calls，让同行审计，并允许 `concede()` |
+| AAP | 生成、接地、挑战、修正、投票 | 宁可承认不确定，也不制造假 winner |
 
 ---
 
@@ -331,21 +348,7 @@ Release workflow 会依次执行 type-check、tests、build，然后执行 `npm 
 
 ## 🗺 Roadmap
 
-近期：
-- [ ] Anthropic / Ollama 协议的 tool-calling 适配（目前只 OpenAI）
-- [ ] Challenge 阶段的 tool-calling（让挑刺者也能查证据反驳）
-- [ ] `streamWithTools` final content 合并 bug 修复
-- [ ] 区分"模型不支持 tool-calling" vs "上游临时不可用"，避免后者被 24h cache 冻死
-
-中期：
-- [ ] 独立 judge model（避免 self-grading bias）
-- [ ] 收敛检测（多轮中根据高 severity challenge 数量动态决定停止）
-- [ ] Bayesian 投票聚合（log-pooling，替代算术加权）
-- [ ] TUI: 让用户在 InputModal 里自定义本次 run 的轮数
-
-长期：
-- [ ] 立场分配（强制部分模型作 steelman 反方）
-- [ ] 可证伪条件：每个 claim 必须带"什么观察会推翻它"
+详见 [docs/ROADMAP.zh-CN.md](docs/ROADMAP.zh-CN.md)，包括当前计划、适合新贡献者的方向和明确的非目标。
 
 ---
 

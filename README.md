@@ -1,15 +1,23 @@
 <div align="center">
 
+<img src="assets/aap-hero.svg" alt="AI Adversarial Protocol" width="100%">
+
 # 🥊 AI Adversarial Protocol
 
 **Multiple LLMs answer the same question, audit each other, ground claims in tools, and only keep what survives scrutiny.**
 
 [![CI](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/laochendeai/ai-adversarial-protocol/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/ai-adversarial-protocol.svg)](https://www.npmjs.com/package/ai-adversarial-protocol)
+[![npm downloads](https://img.shields.io/npm/dm/ai-adversarial-protocol.svg)](https://www.npmjs.com/package/ai-adversarial-protocol)
+[![GitHub release](https://img.shields.io/github/v/release/laochendeai/ai-adversarial-protocol.svg)](https://github.com/laochendeai/ai-adversarial-protocol/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-43853d.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![GitHub stars](https://img.shields.io/github/stars/laochendeai/ai-adversarial-protocol?style=social)](https://github.com/laochendeai/ai-adversarial-protocol/stargazers)
 
 **English** · [简体中文](README.zh-CN.md)
+
+[`npm install -g ai-adversarial-protocol`](https://www.npmjs.com/package/ai-adversarial-protocol) · [Quick Start](#-quick-start) · [FAQ](docs/FAQ.md) · [Roadmap](docs/ROADMAP.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -47,6 +55,15 @@
 ```
 
 **Why adversarial?** A single LLM's RLHF bias makes it confidently fabricate when it doesn't know. Naive multi-LLM voting amplifies same-direction bias (overlapping training data → same wrong answer → majority approves). Adding **external tool grounding** + **honest concession** + **peer audit** is an engineering path that puts *truth* above *sounding complete*.
+
+## Why AAP
+
+| Approach | What usually happens | AAP's stance |
+|---|---|---|
+| Single model | Fast answer, but confident hallucinations are hard to detect | Treat every answer as a claim that can be challenged |
+| Naive model voting | Shared training data can produce shared wrong answers | Require critique, provenance, and explicit "needs review" states |
+| Tool-only agent | Tools help, but the model can still overstate evidence | Show tool calls, let peers audit claims, and allow `concede()` |
+| AAP | Generate, ground, challenge, revise, vote | Prefer verified uncertainty over a fake winner |
 
 ---
 
@@ -327,21 +344,7 @@ The release workflow runs type-check, tests, build, then `npm publish --access p
 
 ## 🗺 Roadmap
 
-Near-term:
-- [ ] Anthropic / Ollama tool-calling adapters (currently OpenAI only)
-- [ ] Tool-calling during the challenge phase (let challengers cite evidence)
-- [ ] Fix `streamWithTools` final-content merge bug
-- [ ] Distinguish "model doesn't support tool-calling" from "upstream temporarily down" so the latter isn't frozen by the 24 h cache
-
-Mid-term:
-- [ ] Independent judge model (avoid self-grading bias)
-- [ ] Convergence detection (stop early when high-severity challenges drop in multi-round)
-- [ ] Bayesian voting aggregation (log-pool replaces arithmetic weighting)
-- [ ] TUI: let users pick the round count per run from the input modal
-
-Long-term:
-- [ ] Position assignment (force some models to steelman the opposing view)
-- [ ] Falsifiability requirement: every claim ships with "what observation would refute this"
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the current plan, good first issue areas, and non-goals.
 
 ---
 

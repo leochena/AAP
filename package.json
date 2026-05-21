@@ -33,11 +33,27 @@
   },
   "files": [
     "dist",
+    "assets",
+    "docs/FAQ.md",
+    "docs/FAQ.zh-CN.md",
+    "docs/ROADMAP.md",
+    "docs/ROADMAP.zh-CN.md",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
     "CHANGELOG.md",
-    "CHANGELOG.zh-CN.md"
+    "CHANGELOG.zh-CN.md",
+    "SUPPORT.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING.zh-CN.md",
+    "SECURITY.md",
+    "SECURITY.zh-CN.md",
+    "CODE_OF_CONDUCT.md",
+    "CODE_OF_CONDUCT.zh-CN.md",
+    "ARCHITECTURE.md",
+    "TESTING.md",
+    "AGENTS.md",
+    "CITATION.cff"
   ],
   "bin": {
     "aap": "dist/cli.js"

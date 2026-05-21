@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use AI Adversarial Protocol in research, tooling, or evaluation work, please cite it as below."
+title: "AI Adversarial Protocol"
+version: "0.1.1"
+date-released: "2026-05-20"
+type: software
+authors:
+  - name: "laochendeai"
+repository-code: "https://github.com/laochendeai/ai-adversarial-protocol"
+url: "https://github.com/laochendeai/ai-adversarial-protocol"
+license: "MIT"
+keywords:
+  - "large language models"
+  - "multi-agent systems"
+  - "tool calling"
+  - "fact checking"
+  - "terminal user interface"

@@ -1,28 +1,28 @@
-name: 🐛 Bug Report
-description: 报告一个 bug 或意外行为
+name: Bug Report
+description: Report a reproducible bug or unexpected behavior.
 title: "[Bug]: "
-labels: ["bug", "triage"]
+labels: ["type: bug", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        感谢报告！请提供足够细节以便复现。安全漏洞请走 [SECURITY.md](../blob/main/SECURITY.md) 私下渠道，不要发在这里。
+        Thanks for reporting. Please include enough detail for maintainers to reproduce the issue. For security issues, do not open a public issue; use the private channel in [SECURITY.md](https://github.com/laochendeai/ai-adversarial-protocol/security/policy).
 
   - type: textarea
-    id: describe
+    id: summary
     attributes:
-      label: 描述
-      description: 简明扼要描述发生了什么、你预期什么。
+      label: Summary
+      description: Briefly describe what happened and what you expected.
       placeholder: |
-        我跑 `aap probe` 之后，模型 X 被标记为 unsupported，但它显然支持 tool-calling……
+        I ran `aap probe`; model X was marked unsupported even though it supports tool-calling...
     validations:
       required: true
 
   - type: textarea
     id: reproduce
     attributes:
-      label: 复现步骤
-      description: 最小复现路径。如果有日志/截图请贴出来。
+      label: Reproduction
+      description: Provide the smallest command sequence that triggers the issue.
       placeholder: |
         1. `aap config add ...`
         2. `aap probe`
@@ -33,14 +33,14 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: 预期行为
+      label: Expected behavior
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: 实际行为 / 错误输出
+      label: Actual behavior or error output
       render: shell
     validations:
       required: true
@@ -48,23 +48,23 @@ body:
   - type: input
     id: version
     attributes:
-      label: AAP 版本 / commit
-      placeholder: "git log -1 --format=%h 的输出 或 npm 包版本"
+      label: AAP version or commit
+      placeholder: "`aap --version` or `git log -1 --format=%h`"
     validations:
       required: true
 
   - type: input
     id: node
     attributes:
-      label: Node 版本
-      placeholder: "node -v"
+      label: Node version
+      placeholder: "`node -v`"
     validations:
       required: true
 
   - type: dropdown
     id: os
     attributes:
-      label: 操作系统
+      label: Operating system
       options:
         - macOS
         - Linux
@@ -77,5 +77,5 @@ body:
   - type: textarea
     id: extra
     attributes:
-      label: 附加信息
-      description: 任何其他相关上下文（配置片段、相关 issue 链接等）。请脱敏 API key。
+      label: Additional context
+      description: Include redacted config snippets, provider names, terminal screenshots, or related issues. Never paste API keys.

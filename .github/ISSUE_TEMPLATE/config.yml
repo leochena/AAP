@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 💬 一般性问题与讨论
+  - name: Questions and design discussions
     url: https://github.com/laochendeai/ai-adversarial-protocol/discussions
-    about: 不确定是 bug 还是用法问题？想讨论设计想法？请用 Discussions。
-  - name: 🛡 报告安全漏洞
+    about: Use Discussions when you are not sure whether something is a bug, need setup help, or want to discuss a design idea.
+  - name: Report a security vulnerability
     url: https://github.com/laochendeai/ai-adversarial-protocol/security/advisories/new
-    about: 发现安全问题请走私下渠道。详见 SECURITY.md。
+    about: Please report security issues privately. See SECURITY.md for details.

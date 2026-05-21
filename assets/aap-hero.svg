@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">AI Adversarial Protocol hero graphic</title>
+  <desc id="desc">A terminal-inspired diagram showing multiple models generating answers, using tools, challenging each other, and converging on a reviewed result.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="0.52" stop-color="#10293d"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12233a"/>
+      <stop offset="1" stop-color="#0b1525"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#facc15"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="420" rx="28" fill="url(#bg)"/>
+  <path d="M0 342 C170 284 259 399 420 334 C566 276 639 305 780 348 C942 398 1052 290 1200 329 L1200 420 L0 420 Z" fill="#0b1220" opacity="0.75"/>
+  <rect x="58" y="52" width="1084" height="316" rx="22" fill="url(#panel)" stroke="#233b56" filter="url(#soft)"/>
+  <rect x="58" y="52" width="1084" height="44" rx="22" fill="#0d1b2d"/>
+  <circle cx="88" cy="74" r="7" fill="#f87171"/>
+  <circle cx="112" cy="74" r="7" fill="#fbbf24"/>
+  <circle cx="136" cy="74" r="7" fill="#34d399"/>
+
+  <text x="80" y="145" fill="#e5f7ff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="42" font-weight="700">AI Adversarial Protocol</text>
+  <text x="80" y="181" fill="#a7c2d9" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19">Multi-LLM debate with tool-grounded verification, concession, and voting.</text>
+
+  <g transform="translate(82 232)" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="17">
+    <rect x="0" y="0" width="214" height="66" rx="12" fill="#0f2438" stroke="#254965"/>
+    <text x="18" y="28" fill="#67e8f9">model.deepseek</text>
+    <text x="18" y="52" fill="#94a3b8">generating answer</text>
+    <rect x="252" y="0" width="214" height="66" rx="12" fill="#0f2438" stroke="#254965"/>
+    <text x="270" y="28" fill="#86efac">model.qwen</text>
+    <text x="270" y="52" fill="#94a3b8">calls search()</text>
+    <rect x="504" y="0" width="214" height="66" rx="12" fill="#0f2438" stroke="#254965"/>
+    <text x="522" y="28" fill="#fde68a">model.glm</text>
+    <text x="522" y="52" fill="#94a3b8">challenges claim</text>
+    <rect x="756" y="0" width="214" height="66" rx="12" fill="#0f2438" stroke="#254965"/>
+    <text x="774" y="28" fill="#c4b5fd">concede()</text>
+    <text x="774" y="52" fill="#94a3b8">truth over winning</text>
+  </g>
+
+  <path d="M300 265 H332" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M552 265 H584" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M804 265 H836" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+
+  <rect x="80" y="326" width="330" height="4" rx="2" fill="url(#accent)"/>
+  <text x="80" y="353" fill="#cbd5e1" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15">Generate → Ground → Challenge → Vote → Review</text>
+</svg>

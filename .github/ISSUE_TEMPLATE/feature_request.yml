@@ -1,55 +1,55 @@
-name: 💡 Feature Request
-description: 提一个新特性或改进想法
+name: Feature Request
+description: Propose a new capability or improvement.
 title: "[Feature]: "
-labels: ["enhancement", "triage"]
+labels: ["type: feature", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        请先看一下 [README Roadmap](../blob/main/README.md#-roadmap) 确认没人在做或没已规划。
+        Please check the [roadmap](https://github.com/laochendeai/ai-adversarial-protocol/blob/main/docs/ROADMAP.md) and existing issues before filing. Chinese-language reports are welcome too.
 
   - type: textarea
     id: problem
     attributes:
-      label: 你想解决什么问题？
-      description: 不要先描述方案。先描述你遇到的痛点或场景。
+      label: Problem
+      description: Describe the workflow pain before proposing a solution.
       placeholder: |
-        我用 AAP 跑事实问题时，发现模型经常说"基于搜索结果"但实际没调过工具。我无法判断哪些回答是真凭证据，哪些是编造的……
+        When I run fact-heavy prompts, I need to know which models actually called tools and which answers were unsupported...
     validations:
       required: true
 
   - type: textarea
     id: proposal
     attributes:
-      label: 你的方案
-      description: 具体怎么实现。如果有架构图、API 草案、参考实现，越具体越好。
+      label: Proposed solution
+      description: Describe the behavior, API, CLI command, or TUI change you want.
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: 替代方案
-      description: 你考虑过哪些其他做法？为什么这个方案更优？
+      label: Alternatives considered
+      description: What else did you try or consider?
 
   - type: dropdown
     id: scope
     attributes:
-      label: 影响范围
+      label: Area
       options:
-        - 引擎核心（AdversarialEngine / EngineHub）
-        - 工具系统（src/lib/tools/）
-        - 协议客户端（OpenAI / Anthropic / Ollama）
-        - HTTP Server / 兼容协议
+        - Engine core (AdversarialEngine / EngineHub)
+        - Tool system (src/lib/tools/)
+        - Model clients (OpenAI / Anthropic / Ollama)
+        - HTTP server / compatibility APIs
         - TUI
         - CLI
-        - 测试 / CI / 构建
-        - 文档
-        - 其他
+        - Tests / CI / build
+        - Documentation
+        - Other
     validations:
       required: true
 
   - type: textarea
     id: extra
     attributes:
-      label: 附加信息
+      label: Additional context

@@ -1,39 +1,30 @@
-<!-- 感谢提 PR！请回答下面两个问题，让 reviewer 一眼能 grok。 -->
+<!-- Thanks for contributing. Keep the PR focused and easy to review. -->
 
 ## Why
 
-<!-- 解决什么问题？什么观察 / 用户反馈 / bug 触发了这个改动？ -->
+<!-- What problem, user report, bug, or design gap does this solve? -->
 
 ## What
 
-<!-- 改了哪些核心文件？新增 / 修改 / 删除了什么概念？
+<!-- Summarize the core changes. Call out new concepts, deleted behavior, or API/event-shape changes. -->
 
-特别说明：
+## Test Plan
 
-- 引入新依赖 → 在这里说明为什么不能复用现有 lib
-- 改变事件契约 / API 形状 → 标注是 breaking 还是 backward-compatible
-- 涉及多个 surgical commits → 说明每个 commit 的意图  -->
+<!-- Check all that apply and add manual steps when relevant. -->
 
-## Test plan
+- [ ] `npm run type-check`
+- [ ] `npm test`
+- [ ] `npm run build`
+- [ ] New or changed behavior has focused tests
+- [ ] Manual scenario tested:
 
-<!-- 选择适用项 -->
+## Reviewer Notes
 
-- [ ] `npm run type-check` 通过
-- [ ] `npm test` 通过
-- [ ] `npm run build` 通过
-- [ ] 新增/修改的代码有对应测试覆盖
-- [ ] 手测过对应场景（说明操作）：
+<!-- Which files deserve the closest review? Which changes are mechanical? -->
 
-<!-- 如果是 UI/TUI 改动，最好附截图或终端录屏。 -->
+## Checklist
 
-## Notes for reviewers
-
-<!-- 你希望 reviewer 重点看哪几个文件？哪些是无脑改动可以略过？ -->
-
----
-
-<!-- 提交前自检 -->
-
-- [ ] commit message 遵循 [Conventional Commits](https://www.conventionalcommits.org/)
-- [ ] 没有把不相关改动揉进同一 commit（surgical commits）
-- [ ] 没有提交 `~/.aap/` 配置 / API key / 调试脚本
+- [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+- [ ] The PR is intentionally scoped; unrelated changes are excluded
+- [ ] No local `~/.aap/` config, API keys, credentials, or debug-only scripts are committed
+- [ ] Documentation is updated when user-facing behavior changes

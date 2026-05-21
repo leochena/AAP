@@ -1,5 +1,4 @@
 src/
-docs/
 scripts/
 .github/
 .claude/
@@ -11,13 +10,4 @@ node_modules/
 tsconfig.json
 tsup.config.ts
 vitest.config.ts
-AGENTS.md
-ARCHITECTURE.md
-TESTING.md
 CI_STATUS.md
-CODE_OF_CONDUCT.md
-CODE_OF_CONDUCT.zh-CN.md
-CONTRIBUTING.md
-CONTRIBUTING.zh-CN.md
-SECURITY.md
-SECURITY.zh-CN.md

@@ -66,6 +66,18 @@
 | 只靠工具的 agent | 工具有帮助，但模型仍可能夸大证据 | 显示真实 tool calls，让同行审计，并允许 `concede()` |
 | AAP | 生成、接地、挑战、修正、投票 | 宁可承认不确定，也不制造假 winner |
 
+## Demo Gallery
+
+下面这些动图展示同一套协议在不同任务里的运行轨迹：独立作答、可选工具接地、互相挑刺、修正和投票。
+
+| 世界杯结果对抗 | 代码理解对抗 |
+|---|---|
+| <img src="assets/demos/world-cup-result.gif" alt="AAP demo: 世界杯结果对抗求证" width="100%"> | <img src="assets/demos/code-understanding.gif" alt="AAP demo: 代码理解对抗审查" width="100%"> |
+
+| 问题求证 | 标准理解 |
+|---|---|
+| <img src="assets/demos/question-verification.gif" alt="AAP demo: 问题求证和工具证据" width="100%"> | <img src="assets/demos/standards-interpretation.gif" alt="AAP demo: 标准理解对抗审查" width="100%"> |
+
 ---
 
 ## ✨ Features

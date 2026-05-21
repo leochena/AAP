@@ -65,6 +65,18 @@
 | Tool-only agent | Tools help, but the model can still overstate evidence | Show tool calls, let peers audit claims, and allow `concede()` |
 | AAP | Generate, ground, challenge, revise, vote | Prefer verified uncertainty over a fake winner |
 
+## Demo Gallery
+
+Each demo is a short terminal-style trace of the same protocol: independent answers, optional tool grounding, peer challenge, revision, and voting.
+
+| World Cup result | Code understanding |
+|---|---|
+| <img src="assets/demos/world-cup-result.gif" alt="AAP demo: World Cup result adversarial verification" width="100%"> | <img src="assets/demos/code-understanding.gif" alt="AAP demo: code understanding adversarial review" width="100%"> |
+
+| Question verification | Standards interpretation |
+|---|---|
+| <img src="assets/demos/question-verification.gif" alt="AAP demo: question verification with tool evidence" width="100%"> | <img src="assets/demos/standards-interpretation.gif" alt="AAP demo: standards interpretation adversarial review" width="100%"> |
+
 ---
 
 ## ✨ Features

@@ -289,6 +289,103 @@ export interface UserOpinionResult {
   summary: string;
 }
 
+// ========== 结构化黑板 / 圆桌协议 ==========
+
+export type StructuredDeliberationEventAction =
+  | 'propose_claim'
+  | 'register_evidence'
+  | 'flag_identity_drift'
+  | 'flag_consensus_risk'
+  | 'protect_minority'
+  | 'request_revision';
+
+export interface StructuredDeliberationEvent {
+  id: string;
+  round: number;
+  actorId: string;
+  action: StructuredDeliberationEventAction;
+  targetId?: string;
+  payload: Record<string, unknown>;
+  summary: string;
+}
+
+export interface BlackboardClaim {
+  id: string;
+  modelId: string;
+  text: string;
+  fingerprint: string;
+  confidence: number;
+  evidenceRefs: string[];
+  uncertainty: boolean;
+}
+
+export interface BlackboardEvidenceRef {
+  id: string;
+  sourceModelId: string;
+  url: string;
+  host: string;
+  claimIds: string[];
+}
+
+export interface IdentityDriftSignal {
+  id: string;
+  modelId: string;
+  runtimeIdentity: string;
+  claimedIdentity: string;
+  severity: 'low' | 'medium' | 'high';
+  evidenceText: string;
+  reason: string;
+}
+
+export interface ConsensusRiskSignal {
+  id: string;
+  clusterId: string;
+  modelIds: string[];
+  claimIds: string[];
+  independentEvidenceCount: number;
+  severity: 'low' | 'medium' | 'high';
+  reason: string;
+}
+
+export interface MinorityProtectionSignal {
+  id: string;
+  modelId: string;
+  claimId: string;
+  againstClusterId: string;
+  severity: 'low' | 'medium' | 'high';
+  reason: string;
+}
+
+export interface StructuredConsensusCluster {
+  id: string;
+  modelIds: string[];
+  claimIds: string[];
+  fingerprint: string;
+  independentEvidenceCount: number;
+  risk: 'none' | 'low' | 'medium' | 'high';
+}
+
+export interface StructuredRevisionDirective {
+  id: string;
+  modelId: string;
+  targetClaimIds: string[];
+  reason: string;
+  required: boolean;
+}
+
+export interface StructuredDeliberationResult {
+  claims: BlackboardClaim[];
+  evidenceRefs: BlackboardEvidenceRef[];
+  consensusClusters: StructuredConsensusCluster[];
+  identityDriftSignals: IdentityDriftSignal[];
+  consensusRisks: ConsensusRiskSignal[];
+  minorityProtection: MinorityProtectionSignal[];
+  revisionDirectives: StructuredRevisionDirective[];
+  events: StructuredDeliberationEvent[];
+  reviewReasons: string[];
+  summary: string;
+}
+
 // ========== 协议级裁决输出契约 ==========
 
 export interface ProtocolEvidenceChainItem {
@@ -362,6 +459,7 @@ export type RunSource = 'tui-input' | 'http-openai' | 'http-anthropic';
 export type RunPhase =
   | 'pending'
   | 'generating'
+  | 'deliberation'
   | 'user-opinion'
   | 'auto-challenge'
   | 'voting'
@@ -392,6 +490,7 @@ export interface RunSnapshot {
   phase: RunPhase;
   responses: Record<string, ModelResponse>;  // modelId → 最终轮 response
   challenges: Challenge[];                    // 最终轮的挑刺
+  structuredDeliberation?: StructuredDeliberationResult;
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
   protocolOutput?: ProtocolOutputContract;
@@ -406,6 +505,7 @@ export interface RunResult {
   runId: string;
   responses: ModelResponse[];
   challenges: Challenge[];
+  structuredDeliberation?: StructuredDeliberationResult;
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
   protocolOutput?: ProtocolOutputContract;
@@ -423,6 +523,7 @@ export type EngineEventType =
   | 'model-complete'
   | 'tool-call'
   | 'model-withdrawn'
+  | 'deliberation-result'
   | 'challenge'
   | 'user-opinion-result'
   | 'voting-result'
@@ -471,6 +572,10 @@ export interface ModelCompleteEventData {
 
 export interface ChallengeEventData {
   challenge: Challenge;
+}
+
+export interface StructuredDeliberationEventData {
+  result: StructuredDeliberationResult;
 }
 
 export interface VoteEventData {

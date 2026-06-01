@@ -8,6 +8,7 @@ interface Props {
 
 const PHASES: { key: RunPhase; label: string }[] = [
   { key: 'generating', label: '生成' },
+  { key: 'deliberation', label: '黑板' },
   { key: 'auto-challenge', label: '挑刺' },
   { key: 'user-opinion', label: '用户意见' },
   { key: 'voting', label: '投票' },

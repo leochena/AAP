@@ -3,8 +3,9 @@
  *
  * 一个 run 包含三个阶段：
  *   1. generating  — 并行调用所有模型流式生成答案
- *   2. auto-challenge — 模型互相挑刺（可选）
- *   3. voting       — 模型对结果投票（可选）
+ *   2. deliberation — 盲答进入结构化黑板，标记共识风险/身份漂移/少数派保护
+ *   3. auto-challenge — 模型互相挑刺（可选）
+ *   4. voting       — 模型对结果投票（可选）
  *
  * 通过 EventEmitter 推送事件给订阅者（TUI / SSE）。
  */
@@ -24,6 +25,7 @@ import {
   RunRequest,
   RunResult,
   RunSnapshot,
+  StructuredDeliberationResult,
   Vote,
   VotingResult,
   AuditMetrics,
@@ -73,6 +75,7 @@ import {
   modelProfileVoteMultiplier,
   scoreModelProfile,
 } from '@/lib/features/model-profile';
+import { buildStructuredDeliberation } from '@/lib/features/structured-deliberation';
 import {
   buildUserOpinionResult,
   extractUserClaims,
@@ -259,6 +262,7 @@ export class AdversarialEngine extends EventEmitter {
       let responses: ModelResponse[] = [];
       let blindResponses: ModelResponse[] = [];
       let challenges: Challenge[] = [];
+      let structuredDeliberation: StructuredDeliberationResult | undefined;
       const enableAC =
         this.options.request.enableAutoChallenge ??
         this.options.adversarialConfig.autoChallenge.enabled;
@@ -283,6 +287,18 @@ export class AdversarialEngine extends EventEmitter {
         responses.forEach(r => {
           this.snapshot.responses[r.modelId] = r;
         });
+        if (round === 1) {
+          this.snapshot.phase = 'deliberation';
+          this.emitEvent('phase-change', { phase: 'deliberation' });
+          structuredDeliberation = buildStructuredDeliberation({
+            question: this.options.request.question,
+            models: this.options.models,
+            responses,
+            runId: this.runId,
+          });
+          this.snapshot.structuredDeliberation = structuredDeliberation;
+          this.emitEvent('deliberation-result', { result: structuredDeliberation });
+        }
 
         // ==== Phase: Auto-Challenge ====
         // Run challenges every round so round n+1 can refine off them.
@@ -325,6 +341,7 @@ export class AdversarialEngine extends EventEmitter {
       const protocolOutput = buildProtocolOutputContract({
         responses: [...excludedResponses, ...responses],
         challenges: this.snapshot.challenges,
+        structuredDeliberation,
         voting,
         userOpinion,
       });
@@ -338,6 +355,7 @@ export class AdversarialEngine extends EventEmitter {
         runId: this.runId,
         responses: [...excludedResponses, ...responses],
         challenges: this.snapshot.challenges,
+        structuredDeliberation,
         voting,
         userOpinion,
         protocolOutput,
@@ -889,6 +907,7 @@ export class AdversarialEngine extends EventEmitter {
       responses: result.responses,
       challenges: result.challenges,
       userOpinion: result.userOpinion,
+      structuredDeliberation: result.structuredDeliberation,
       voting: result.voting,
     });
     if (events.length === 0) return;

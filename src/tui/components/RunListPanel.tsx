@@ -17,6 +17,7 @@ const SOURCE_COLOR: Record<UIRunState['source'], 'cyan' | 'magenta' | 'yellow'> 
 const PHASE_LABEL: Record<UIRunState['phase'], string> = {
   pending: '⋯',
   generating: '生成中',
+  deliberation: '黑板',
   'auto-challenge': '挑刺中',
   'user-opinion': '用户意见',
   voting: '投票中',

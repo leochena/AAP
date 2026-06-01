@@ -7,6 +7,7 @@ import {
   ProtocolReviewState,
   ProtocolSycophancyRisk,
   ProtocolUserClaimDecision,
+  StructuredDeliberationResult,
   UserOpinionResult,
   VotingResult,
 } from '@/lib/types';
@@ -14,6 +15,7 @@ import {
 export interface BuildProtocolOutputInput {
   responses: ModelResponse[];
   challenges: Challenge[];
+  structuredDeliberation?: StructuredDeliberationResult;
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
 }
@@ -24,13 +26,14 @@ export function buildProtocolOutputContract(
   const conclusion = buildConclusion(input.responses, input.voting);
   const confidence = estimateConfidence(input.voting, input.userOpinion);
   const evidenceChain = buildEvidenceChain(input.userOpinion);
-  const conflictPoints = buildConflictPoints(input.challenges, input.userOpinion);
+  const conflictPoints = buildConflictPoints(input.challenges, input.userOpinion, input.structuredDeliberation);
   const userClaims = buildUserClaimDecisions(input.userOpinion);
   const sycophancyRisks = buildSycophancyRisks(input.userOpinion);
   const review = buildReviewState({
     voting: input.voting,
     responses: input.responses,
     userOpinion: input.userOpinion,
+    structuredDeliberation: input.structuredDeliberation,
     conflictPoints,
     sycophancyRisks,
     evidenceChain,
@@ -130,7 +133,8 @@ function buildEvidenceChain(userOpinion?: UserOpinionResult): ProtocolEvidenceCh
 
 function buildConflictPoints(
   challenges: Challenge[],
-  userOpinion?: UserOpinionResult
+  userOpinion?: UserOpinionResult,
+  structuredDeliberation?: StructuredDeliberationResult
 ): ProtocolConflictPoint[] {
   const challengePoints = challenges
     .filter(c => c.severity !== 'low')
@@ -148,7 +152,27 @@ function buildConflictPoints(
       summary: v.reason,
       severity: v.status === 'unresolved' ? 'medium' as const : 'low' as const,
     }));
-  return [...challengePoints, ...claimPoints];
+  const deliberationPoints: ProtocolConflictPoint[] = [
+    ...(structuredDeliberation?.identityDriftSignals ?? []).map(signal => ({
+      id: `identity-${signal.id}`,
+      source: signal.modelId,
+      summary: signal.reason,
+      severity: signal.severity,
+    })),
+    ...(structuredDeliberation?.consensusRisks ?? []).map(signal => ({
+      id: `consensus-${signal.id}`,
+      source: signal.clusterId,
+      summary: signal.reason,
+      severity: signal.severity,
+    })),
+    ...(structuredDeliberation?.minorityProtection ?? []).map(signal => ({
+      id: `minority-${signal.id}`,
+      source: signal.modelId,
+      summary: signal.reason,
+      severity: signal.severity,
+    })),
+  ];
+  return [...challengePoints, ...claimPoints, ...deliberationPoints];
 }
 
 function buildUserClaimDecisions(userOpinion?: UserOpinionResult): ProtocolUserClaimDecision[] {
@@ -182,6 +206,7 @@ function buildReviewState(input: {
   voting?: VotingResult;
   responses: ModelResponse[];
   userOpinion?: UserOpinionResult;
+  structuredDeliberation?: StructuredDeliberationResult;
   conflictPoints: ProtocolConflictPoint[];
   sycophancyRisks: ProtocolSycophancyRisk[];
   evidenceChain: ProtocolEvidenceChainItem[];
@@ -194,6 +219,15 @@ function buildReviewState(input: {
     reasons.push('用户 claim 存在证据不足');
   }
   if (input.sycophancyRisks.some(r => r.severity === 'high')) reasons.push('存在高附和风险');
+  if ((input.structuredDeliberation?.identityDriftSignals ?? []).length > 0) {
+    reasons.push('存在模型身份漂移信号');
+  }
+  if ((input.structuredDeliberation?.consensusRisks ?? []).some(r => r.severity !== 'low')) {
+    reasons.push('存在低独立性共识风险');
+  }
+  if ((input.structuredDeliberation?.minorityProtection ?? []).length > 0) {
+    reasons.push('存在需要保护的少数派论断');
+  }
   if ((input.userOpinion?.claims ?? []).some(c => c.evidenceUrls.length > 0) && input.evidenceChain.length === 0) {
     reasons.push('用户提供证据链接但未形成可用证据链');
   }

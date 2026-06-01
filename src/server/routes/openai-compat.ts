@@ -17,6 +17,7 @@ import { Message, RunRequest, RunResult, UserOpinionInput } from '@/lib/types';
 import { buildOpenAIStream } from '@/server/sse';
 import { formatUserOpinionResult, normalizeUserOpinionInput } from '@/lib/features/user-opinion';
 import { formatProtocolOutputContract } from '@/lib/features/output-contract';
+import { formatStructuredDeliberation } from '@/lib/features/structured-deliberation';
 
 interface ChatCompletionRequest {
   model: string;
@@ -230,6 +231,7 @@ function buildOpenAIFinalResponse(
       error: r.error,
     })),
     challenges: result.challenges,
+    structuredDeliberation: result.structuredDeliberation,
     voting: result.voting,
     userOpinion: result.userOpinion,
     protocolOutput: result.protocolOutput,
@@ -263,6 +265,10 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
         out += `${r.content}\n\n`;
       }
     }
+  }
+  const deliberationBlock = formatStructuredDeliberation(result.structuredDeliberation);
+  if (deliberationBlock) {
+    out += `\n\n---\n\n${deliberationBlock}\n`;
   }
   if (result.challenges.length > 0) {
     out += '\n---\n\n## 🔍 互相挑刺\n\n';

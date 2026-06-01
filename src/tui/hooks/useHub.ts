@@ -18,6 +18,7 @@ import {
   VotingResult,
   ModelResponse,
   PhaseChangeEventData,
+  StructuredDeliberationResult,
   UserOpinionResult,
 } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
@@ -48,6 +49,7 @@ export interface UIRunState {
   modelTokens: Record<string, number>;
   modelErrors: Record<string, string>;
   challenges: Challenge[];
+  structuredDeliberation?: StructuredDeliberationResult;
   userOpinion?: UserOpinionResult;
   voting?: VotingResult;
   startedAt: number;
@@ -215,6 +217,8 @@ export function useHub(hub: EngineHub) {
         } else if (event.type === 'challenge') {
           const { challenge } = event.data as { challenge: Challenge };
           next.challenges = [...next.challenges, challenge];
+        } else if (event.type === 'deliberation-result') {
+          next.structuredDeliberation = (event.data as { result: StructuredDeliberationResult }).result;
         } else if (event.type === 'voting-result') {
           next.voting = (event.data as { result: VotingResult }).result;
         } else if (event.type === 'user-opinion-result') {
@@ -225,6 +229,7 @@ export function useHub(hub: EngineHub) {
           next.finishedAt = Date.now();
           next.voting = result.voting ?? next.voting;
           next.userOpinion = result.userOpinion ?? next.userOpinion;
+          next.structuredDeliberation = result.structuredDeliberation ?? next.structuredDeliberation;
           for (const response of result.responses) {
             if (!next.modelIds.includes(response.modelId)) {
               next.modelIds = [...next.modelIds, response.modelId];

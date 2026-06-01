@@ -37,12 +37,17 @@
                   │  models proven wrong → concede() and exit │
                   └──────────────┬────────────────────────────┘
                                  ▼
-                  ┌──── Phase 3: Auto-Challenge ────┐
+                  ┌──── Phase 3: Structured Blackboard ───────┐
+                  │  claims / evidence / consensus risk       │
+                  │  identity drift / minority protection     │
+                  └──────────────┬────────────────────────────┘
+                                 ▼
+                  ┌──── Phase 4: Auto-Challenge ────┐
                   │  every model audits every other  │
                   │  flags factual / logical / gaps  │
                   └──────────────┬───────────────────┘
                                  ▼
-                  ┌──── Phase 4: Voting ────────────┐
+                  ┌──── Phase 5: Voting ────────────┐
                   │  majority / weighted / consensus │
                   │  / unanimous                     │
                   │  no consensus → "needs review"   │
@@ -67,7 +72,7 @@
 
 ## Demo Gallery
 
-Each demo is a short terminal-style trace of the same protocol: independent answers, optional tool grounding, peer challenge, revision, and voting.
+Each demo is a short terminal-style trace of the same protocol: independent answers, optional tool grounding, structured blackboard review, peer challenge, revision, and voting.
 
 | World Cup result | Code understanding |
 |---|---|
@@ -102,6 +107,12 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 - Output includes adopted / rejected / partial / unresolved verdicts, evidence status, an adoption matrix, and a compact evidence graph
 - Anti-sycophancy scoring down-weights models that support a user claim without evidence after a blind first pass
 
+### Structured blackboard protocol
+- Blind answers are converted into structured claims, evidence refs, consensus clusters, and controller events before peer challenge starts
+- Low-independence consensus is flagged so "two models agree" is not treated as truth by itself
+- Divergent minority claims are preserved for adjudication instead of being overwritten by majority wording
+- Identity drift is surfaced when a runtime participant claims to be a different model family, and the signal feeds model-profile scoring
+
 ### Structured decision engines
 - Forecasting framework for probability rankings with base rates, weighted signals, uncertainty intervals, Brier score, and log loss
 - World Cup champion model MVP using rating/form/health/path inputs with deterministic seeded simulations
@@ -112,6 +123,7 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 - Live streaming output and token counts per model
 - Cross-model challenges (type / severity / confidence / cited fragment / reason)
 - **Tool-call panel**: which model called which tool, ok/✗, result preview
+- Structured blackboard panel for consensus risk, identity drift, minority protection, and revision directives
 - Concession block (purple ⚐) for honest withdrawals
 - Voting distribution
 - Multi-round progress indicator
@@ -243,7 +255,7 @@ curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   }'
 ```
 
-The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, challenges, voting, user-opinion verdicts, evidence results, adoption matrix, and tool-call logs.
+The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, structured deliberation, challenges, voting, user-opinion verdicts, evidence results, adoption matrix, and tool-call logs.
 
 Streaming: add `"stream": true`, get standard OpenAI SSE; per-model output is separated with `## modelId` markdown headers; the final chunk carries `x_adversarial`, then `data: [DONE]`.
 

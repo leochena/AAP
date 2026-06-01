@@ -11,6 +11,7 @@ import {
 import { EngineHub } from '@/engine/EngineHub';
 import { formatUserOpinionResult } from '@/lib/features/user-opinion';
 import { formatProtocolOutputContract } from '@/lib/features/output-contract';
+import { formatStructuredDeliberation } from '@/lib/features/structured-deliberation';
 
 const enc = new TextEncoder();
 
@@ -76,6 +77,11 @@ function formatProtocolBlock(result?: import('@/lib/types').ProtocolOutputContra
   return block ? `${block}\n` : '';
 }
 
+function formatStructuredDeliberationBlock(result?: import('@/lib/types').StructuredDeliberationResult): string {
+  const block = formatStructuredDeliberation(result);
+  return block ? `${block}\n` : '';
+}
+
 /**
  * 创建 OpenAI Chat Completions 兼容的 SSE 流
  *
@@ -137,7 +143,15 @@ export function buildOpenAIStream(
           safeEnqueue(ssePayload(makeChunk(responseId, modelLabel, { content: data.delta })));
         } else if (!passthrough && event.type === 'phase-change') {
           const { phase } = event.data as { phase: string };
-          if (phase === 'auto-challenge') {
+          if (phase === 'deliberation') {
+            safeEnqueue(
+              ssePayload(
+                makeChunk(responseId, modelLabel, {
+                  content: '\n\n---\n\n',
+                })
+              )
+            );
+          } else if (phase === 'auto-challenge') {
             safeEnqueue(
               ssePayload(
                 makeChunk(responseId, modelLabel, {
@@ -166,6 +180,13 @@ export function buildOpenAIStream(
           const { challenge } = event.data as { challenge: import('@/lib/types').Challenge };
           safeEnqueue(
             ssePayload(makeChunk(responseId, modelLabel, { content: formatChallengeLine(challenge) }))
+          );
+        } else if (!passthrough && event.type === 'deliberation-result') {
+          const { result } = event.data as {
+            result: import('@/lib/types').StructuredDeliberationResult;
+          };
+          safeEnqueue(
+            ssePayload(makeChunk(responseId, modelLabel, { content: formatStructuredDeliberationBlock(result) }))
           );
         } else if (!passthrough && event.type === 'voting-result') {
           const { result } = event.data as {
@@ -210,6 +231,7 @@ export function buildOpenAIStream(
                     error: r.error,
                   })),
                   challenges: result.challenges,
+                  structuredDeliberation: result.structuredDeliberation,
                   voting: result.voting,
                   userOpinion: result.userOpinion,
                   protocolOutput: result.protocolOutput,
@@ -326,12 +348,18 @@ export function buildAnthropicStream(
           sendDelta(data.delta);
         } else if (!passthrough && e.type === 'phase-change') {
           const { phase } = e.data as { phase: string };
+          if (phase === 'deliberation') sendDelta('\n\n---\n\n');
           if (phase === 'auto-challenge') sendDelta('\n\n---\n\n### 🔍 互相挑刺\n\n');
           if (phase === 'voting') sendDelta('\n\n---\n\n### 🗳️ 多模型投票\n\n');
           if (phase === 'user-opinion') sendDelta('\n\n---\n\n### 用户意见评审\n\n');
         } else if (!passthrough && e.type === 'challenge') {
           const { challenge } = e.data as { challenge: import('@/lib/types').Challenge };
           sendDelta(formatChallengeLine(challenge));
+        } else if (!passthrough && e.type === 'deliberation-result') {
+          const { result } = e.data as {
+            result: import('@/lib/types').StructuredDeliberationResult;
+          };
+          sendDelta(formatStructuredDeliberationBlock(result));
         } else if (!passthrough && e.type === 'voting-result') {
           const { result } = e.data as {
             result: import('@/lib/types').VotingResult;

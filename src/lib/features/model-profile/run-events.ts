@@ -1,6 +1,7 @@
 import {
   Challenge,
   ModelResponse,
+  StructuredDeliberationResult,
   UserOpinionResult,
   VotingResult,
 } from '@/lib/types';
@@ -12,6 +13,7 @@ export interface BuildProfileEventsFromRunInput {
   timestamp: number;
   responses: ModelResponse[];
   challenges: Challenge[];
+  structuredDeliberation?: StructuredDeliberationResult;
   userOpinion?: UserOpinionResult;
   voting?: VotingResult;
 }
@@ -50,6 +52,22 @@ export function buildProfileEventsFromRun(
     });
   }
 
+  for (const signal of input.structuredDeliberation?.identityDriftSignals ?? []) {
+    events.push({
+      id: eventId(input.runId, signal.modelId, `identity-drift:${signal.id}`),
+      modelId: signal.modelId,
+      type: 'benchmark_result',
+      capability: 'conflict_adjudication',
+      taskType: input.taskType,
+      timestamp: input.timestamp,
+      score: severityToIdentityScore(signal.severity),
+      sampleCount: 1,
+      weight: 0.9,
+      source: 'structured-deliberation:identity-drift',
+      notes: signal.reason,
+    });
+  }
+
   for (const vote of input.voting?.votes ?? []) {
     events.push({
       id: eventId(input.runId, vote.voterId, 'vote-confidence'),
@@ -66,6 +84,17 @@ export function buildProfileEventsFromRun(
   }
 
   return events;
+}
+
+function severityToIdentityScore(severity: ProfileSeverity): number {
+  switch (severity) {
+    case 'high':
+      return 0.15;
+    case 'medium':
+      return 0.35;
+    case 'low':
+      return 0.6;
+  }
 }
 
 function answerQualityEvent(

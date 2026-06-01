@@ -8,6 +8,7 @@ import { ChallengeView } from './ChallengeView';
 import { VoteView } from './VoteView';
 import { UserOpinionView } from './UserOpinionView';
 import { StructuredDeliberationView } from './StructuredDeliberationView';
+import { ProtocolOutputView } from './ProtocolOutputView';
 
 interface Props {
   run?: UIRunState;
@@ -53,6 +54,14 @@ export function RunDetailView({ run, width, rows }: Props) {
           )}
         </Box>
       </Box>
+      <ProtocolOutputView
+        contract={run.protocolOutput}
+        voting={run.voting}
+        roundsCompleted={run.roundsCompleted}
+        totalRounds={run.totalRounds}
+        roundStopReason={run.roundStopReason}
+        roundStopDetail={run.roundStopDetail}
+      />
       {visibleIds.length > 0 && (
         <ModelPanel
           run={run}

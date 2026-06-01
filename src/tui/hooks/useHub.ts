@@ -20,6 +20,7 @@ import {
   PhaseChangeEventData,
   StructuredDeliberationResult,
   UserOpinionResult,
+  ProtocolOutputContract,
 } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
 
@@ -51,12 +52,16 @@ export interface UIRunState {
   challenges: Challenge[];
   structuredDeliberation?: StructuredDeliberationResult;
   userOpinion?: UserOpinionResult;
+  protocolOutput?: ProtocolOutputContract;
   voting?: VotingResult;
   startedAt: number;
   finishedAt?: number;
   error?: string;
   currentRound?: number;
   totalRounds?: number;
+  roundsCompleted?: number;
+  roundStopReason?: RunSnapshot['roundStopReason'];
+  roundStopDetail?: string;
   toolCalls: UIToolCall[];
   withdrawals: UIWithdrawal[];
 }
@@ -230,6 +235,10 @@ export function useHub(hub: EngineHub) {
           next.voting = result.voting ?? next.voting;
           next.userOpinion = result.userOpinion ?? next.userOpinion;
           next.structuredDeliberation = result.structuredDeliberation ?? next.structuredDeliberation;
+          next.protocolOutput = result.protocolOutput ?? next.protocolOutput;
+          next.roundsCompleted = result.roundsCompleted;
+          next.roundStopReason = result.roundStopReason;
+          next.roundStopDetail = result.roundStopDetail;
           for (const response of result.responses) {
             if (!next.modelIds.includes(response.modelId)) {
               next.modelIds = [...next.modelIds, response.modelId];

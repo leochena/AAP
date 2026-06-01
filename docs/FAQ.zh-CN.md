@@ -26,6 +26,10 @@
 
 在盲答之后、同行挑刺之前，AAP 会把模型输出转换成结构化 claim、证据引用、共识簇、controller 事件和修正指令。这样模型之间的沟通不再依赖自由文本互相附和。低独立证据共识、少数派保护和身份漂移信号都会显示在 TUI、HTTP 输出和 `x_adversarial.structuredDeliberation` 里。
 
+## AAP 会固定第 2 轮结束吗？
+
+不会。AAP 现在使用自适应轮次控制：至少运行 `adversarial.roundControl.minRounds`，之后只有在配置的继续信号消失时才停止，或达到 `adversarial.maxRounds` 安全上限。`maxRounds` 是成本和延迟上限，不是真相保证；如果达到上限仍有未解决挑刺，最终协议契约会标记需人工复核。
+
 ## AAP 怎么随着大模型进化而进化？
 
 AAP 不写死供应商排名。每次运行会把轻量模型画像事件写入 `~/.aap/model-profiles.json`：盲答完成度、工具使用、证据审查、挑刺行为、身份漂移和反附和信号。后续投票会读取这些画像，并按真实表现动态调权。等现实结果后来被证实时，用 `aap calibration add` 回填；它会写入 `calibration-memory.json`，同时把校准事件反馈到模型画像。单纯“说得很自信”不会被当成正确。

@@ -26,6 +26,10 @@ The first model answer is blind: it does not see the user opinion. If a model la
 
 After blind answers and before peer challenge, AAP converts model outputs into structured claims, evidence refs, consensus clusters, controller events, and revision directives. This makes model-to-model communication auditable without relying on free-form agreement. Low-independence consensus, protected minority claims, and identity-drift signals are surfaced in TUI, HTTP output, and `x_adversarial.structuredDeliberation`.
 
+## Does AAP stop after exactly two rounds?
+
+No. AAP now uses adaptive round control. It runs at least `adversarial.roundControl.minRounds` and stops only when configured continuation signals disappear, or when `adversarial.maxRounds` is reached. `maxRounds` is a cost and latency cap, not a truth guarantee; if unresolved challenges remain at the cap, the final protocol contract marks human review required.
+
 ## How does AAP improve as models improve?
 
 AAP does not hard-code provider rankings. Each run writes lightweight model-profile events to `~/.aap/model-profiles.json`: blind answer completion, tool use, evidence review, challenge behavior, identity drift, and anti-sycophancy signals. Future voting reads those profiles and adjusts weights by measured behavior. When a later real-world outcome is known, add it with `aap calibration add`; that writes `calibration-memory.json` and feeds a calibration event back into the model profile. Raw confidence alone is not treated as truth.

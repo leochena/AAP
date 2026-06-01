@@ -222,6 +222,9 @@ export function buildOpenAIStream(
                 x_adversarial: {
                   runId: result.runId,
                   durationMs: result.durationMs,
+                  roundsCompleted: result.roundsCompleted,
+                  roundStopReason: result.roundStopReason,
+                  roundStopDetail: result.roundStopDetail,
                   responses: result.responses.map(r => ({
                     modelId: r.modelId,
                     content: r.content,

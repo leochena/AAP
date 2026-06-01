@@ -20,7 +20,7 @@ export function ChallengeView({ challenges }: Props) {
       <Text bold color="magenta">
         🔍 互相挑刺 ({challenges.length})
       </Text>
-      {challenges.slice(0, 8).map(c => (
+      {challenges.slice(0, 30).map(c => (
         <Box key={c.id} marginTop={1}>
           <Text>
             <Text color="cyan">{c.challengerId}</Text>
@@ -36,9 +36,9 @@ export function ChallengeView({ challenges }: Props) {
           </Text>
         </Box>
       ))}
-      {challenges.length > 8 && (
+      {challenges.length > 30 && (
         <Box marginTop={1}>
-          <Text dimColor>...还有 {challenges.length - 8} 条挑刺</Text>
+          <Text dimColor>...还有 {challenges.length - 30} 条挑刺，请提高终端高度或查看 HTTP x_adversarial.challenges</Text>
         </Box>
       )}
     </Box>

@@ -149,6 +149,9 @@ export function createAnthropicRoutes(hub: EngineHub): Hono {
     base.x_adversarial = {
       runId: result.runId,
       durationMs: result.durationMs,
+      roundsCompleted: result.roundsCompleted,
+      roundStopReason: result.roundStopReason,
+      roundStopDetail: result.roundStopDetail,
       mode: parsed.mode,
       responses: result.responses.map(r => ({
         modelId: r.modelId,

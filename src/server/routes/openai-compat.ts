@@ -221,6 +221,9 @@ function buildOpenAIFinalResponse(
   base.x_adversarial = {
     runId: result.runId,
     durationMs: result.durationMs,
+    roundsCompleted: result.roundsCompleted,
+    roundStopReason: result.roundStopReason,
+    roundStopDetail: result.roundStopDetail,
     mode,
     responses: result.responses.map(r => ({
       modelId: r.modelId,

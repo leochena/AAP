@@ -18,6 +18,8 @@ export interface BuildProtocolOutputInput {
   structuredDeliberation?: StructuredDeliberationResult;
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
+  roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
+  roundStopDetail?: string;
 }
 
 export function buildProtocolOutputContract(
@@ -34,6 +36,8 @@ export function buildProtocolOutputContract(
     responses: input.responses,
     userOpinion: input.userOpinion,
     structuredDeliberation: input.structuredDeliberation,
+    roundStopReason: input.roundStopReason,
+    roundStopDetail: input.roundStopDetail,
     conflictPoints,
     sycophancyRisks,
     evidenceChain,
@@ -207,6 +211,8 @@ function buildReviewState(input: {
   responses: ModelResponse[];
   userOpinion?: UserOpinionResult;
   structuredDeliberation?: StructuredDeliberationResult;
+  roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
+  roundStopDetail?: string;
   conflictPoints: ProtocolConflictPoint[];
   sycophancyRisks: ProtocolSycophancyRisk[];
   evidenceChain: ProtocolEvidenceChainItem[];
@@ -227,6 +233,9 @@ function buildReviewState(input: {
   }
   if ((input.structuredDeliberation?.minorityProtection ?? []).length > 0) {
     reasons.push('存在需要保护的少数派论断');
+  }
+  if (input.roundStopReason === 'max-rounds') {
+    reasons.push(input.roundStopDetail ?? '达到最大轮数后仍存在未解决冲突');
   }
   if ((input.userOpinion?.claims ?? []).some(c => c.evidenceUrls.length > 0) && input.evidenceChain.length === 0) {
     reasons.push('用户提供证据链接但未形成可用证据链');

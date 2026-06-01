@@ -51,6 +51,18 @@ export interface AdversarialConfig {
   maxRounds: number;
 
   /**
+   * 自适应轮次控制。maxRounds 是安全上限，不是“求真完成”的信号。
+   * 引擎至少运行 minRounds；之后若仍有中/高严重性挑刺或黑板要求强制修正，
+   * 会继续到 maxRounds。到上限仍有冲突时，最终契约必须标记需复核。
+   */
+  roundControl?: {
+    minRounds: number;
+    continueOnHighSeverityChallenge: boolean;
+    continueOnMediumSeverityChallenge: boolean;
+    continueOnRequiredRevision: boolean;
+  };
+
+  /**
    * 工具调用 / 求真接地配置。tools.enabled 为 false 时，引擎走纯文本路径
    * （和 Tier 1/2 行为完全一样）。
    */
@@ -499,6 +511,9 @@ export interface RunSnapshot {
   error?: string;
   currentRound?: number;        // 1-based，仅 multi-round
   totalRounds?: number;
+  roundsCompleted?: number;
+  roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
+  roundStopDetail?: string;
 }
 
 export interface RunResult {
@@ -511,6 +526,9 @@ export interface RunResult {
   protocolOutput?: ProtocolOutputContract;
   metrics: Record<string, AuditMetrics>;
   durationMs: number;
+  roundsCompleted?: number;
+  roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
+  roundStopDetail?: string;
 }
 
 // ========== Engine 事件 ==========

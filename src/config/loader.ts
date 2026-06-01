@@ -29,7 +29,13 @@ export const DEFAULT_CONFIG: AppConfig = {
       threshold: 0.5,
       tiebreaker: 'first',
     },
-    maxRounds: 2,
+    maxRounds: 4,
+    roundControl: {
+      minRounds: 2,
+      continueOnHighSeverityChallenge: true,
+      continueOnMediumSeverityChallenge: true,
+      continueOnRequiredRevision: true,
+    },
     tools: {
       enabled: false,                              // 默认关闭：求真模式需用户显式打开
       searxngUrl: 'http://127.0.0.1:28080',
@@ -87,6 +93,7 @@ function mergeWithDefaults(
   partial: Partial<AppConfig>,
   storageDir: string
 ): AppConfig {
+  const defaultRoundControl = DEFAULT_CONFIG.adversarial.roundControl!;
   return {
     models: partial.models ?? [],
     server: {
@@ -104,6 +111,13 @@ function mergeWithDefaults(
       },
       maxRounds:
         partial.adversarial?.maxRounds ?? DEFAULT_CONFIG.adversarial.maxRounds,
+      roundControl: {
+        minRounds: defaultRoundControl.minRounds,
+        continueOnHighSeverityChallenge: defaultRoundControl.continueOnHighSeverityChallenge,
+        continueOnMediumSeverityChallenge: defaultRoundControl.continueOnMediumSeverityChallenge,
+        continueOnRequiredRevision: defaultRoundControl.continueOnRequiredRevision,
+        ...(partial.adversarial?.roundControl ?? {}),
+      },
       tools: {
         ...DEFAULT_CONFIG.adversarial.tools,
         ...(partial.adversarial?.tools ?? {}),

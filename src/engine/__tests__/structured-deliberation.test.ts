@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AdversarialEngine } from '../AdversarialEngine';
-import type { AdversarialConfig, EngineEvent, ModelConfig, ModelResponse, RunRequest } from '@/lib/types';
+import type { AdversarialConfig, Challenge, EngineEvent, ModelConfig, ModelResponse, RunRequest } from '@/lib/types';
 
 const adversarialConfig: AdversarialConfig = {
   autoChallenge: { enabled: true, threshold: 0.7, maxChallengesPerRound: 3 },
@@ -31,6 +31,21 @@ function model(id: string): ModelConfig {
 
 function response(modelId: string, content: string): ModelResponse {
   return { modelId, content, tokensIn: 0, tokensOut: 0, durationMs: 0 };
+}
+
+function challenge(round: number): Challenge {
+  return {
+    id: `c-${round}`,
+    challengerId: 'm1',
+    targetId: 'm2',
+    type: 'factual-error',
+    severity: 'high',
+    targetSegment: 'claim',
+    reason: `unresolved high-risk conflict in round ${round}`,
+    confidence: 0.9,
+    status: 'pending',
+    timestamp: round,
+  };
 }
 
 describe('AdversarialEngine structured deliberation', () => {
@@ -70,5 +85,81 @@ describe('AdversarialEngine structured deliberation', () => {
     expect(result.structuredDeliberation?.consensusRisks[0]).toMatchObject({ severity: 'high' });
     expect(eventOrder.indexOf('phase:deliberation')).toBeLessThan(eventOrder.indexOf('deliberation-result'));
     expect(eventOrder.indexOf('deliberation-result')).toBeLessThan(eventOrder.indexOf('phase:auto-challenge'));
+  });
+
+  it('continues past the minimum round while high-severity challenges remain', async () => {
+    const engine = new AdversarialEngine({
+      request: {
+        question: 'Which claim survives?',
+        modelIds: ['m1', 'm2'],
+        source: 'tui-input',
+      },
+      models: [model('m1'), model('m2')],
+      adversarialConfig: {
+        ...adversarialConfig,
+        maxRounds: 4,
+        roundControl: {
+          minRounds: 2,
+          continueOnHighSeverityChallenge: true,
+          continueOnMediumSeverityChallenge: true,
+          continueOnRequiredRevision: true,
+        },
+      },
+      storageDir: '/tmp/aap-test',
+    });
+    let generationRounds = 0;
+    (engine as unknown as { runGenerating: () => Promise<ModelResponse[]> }).runGenerating = async () => {
+      generationRounds += 1;
+      return [
+        response('m1', `Round ${generationRounds}: The filing is valid because registry evidence supports it.`),
+        response('m2', `Round ${generationRounds}: The filing is invalid because the signature evidence conflicts.`),
+      ];
+    };
+    (engine as unknown as { runAutoChallenge: () => Promise<Challenge[]> }).runAutoChallenge = async () => {
+      const round = engine.snapshot.currentRound ?? 1;
+      return round < 3 ? [challenge(round)] : [];
+    };
+
+    const result = await engine.run();
+
+    expect(generationRounds).toBe(3);
+    expect(result.roundsCompleted).toBe(3);
+    expect(result.roundStopReason).toBe('converged');
+  });
+
+  it('marks review required when max rounds are reached with unresolved conflicts', async () => {
+    const engine = new AdversarialEngine({
+      request: {
+        question: 'Which claim survives?',
+        modelIds: ['m1', 'm2'],
+        source: 'tui-input',
+      },
+      models: [model('m1'), model('m2')],
+      adversarialConfig: {
+        ...adversarialConfig,
+        maxRounds: 2,
+        roundControl: {
+          minRounds: 2,
+          continueOnHighSeverityChallenge: true,
+          continueOnMediumSeverityChallenge: true,
+          continueOnRequiredRevision: true,
+        },
+      },
+      storageDir: '/tmp/aap-test',
+    });
+    (engine as unknown as { runGenerating: () => Promise<ModelResponse[]> }).runGenerating = async () => [
+      response('m1', 'The filing is valid because registry evidence supports it.'),
+      response('m2', 'The filing is invalid because the signature evidence conflicts.'),
+    ];
+    (engine as unknown as { runAutoChallenge: () => Promise<Challenge[]> }).runAutoChallenge = async () => [
+      challenge(engine.snapshot.currentRound ?? 1),
+    ];
+
+    const result = await engine.run();
+
+    expect(result.roundsCompleted).toBe(2);
+    expect(result.roundStopReason).toBe('max-rounds');
+    expect(result.protocolOutput?.review.required).toBe(true);
+    expect(result.protocolOutput?.review.reasons.join(' ')).toContain('maxRounds=2');
   });
 });

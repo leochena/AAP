@@ -232,6 +232,11 @@ export class AdversarialEngine extends EventEmitter {
       1,
       this.options.request.maxRounds ?? this.options.adversarialConfig.maxRounds ?? 1
     );
+    const roundControl = this.options.adversarialConfig.roundControl;
+    const minRounds = Math.min(
+      maxRounds,
+      Math.max(1, roundControl?.minRounds ?? Math.min(2, maxRounds))
+    );
     this.snapshot.totalRounds = maxRounds;
 
     try {
@@ -263,6 +268,9 @@ export class AdversarialEngine extends EventEmitter {
       let blindResponses: ModelResponse[] = [];
       let challenges: Challenge[] = [];
       let structuredDeliberation: StructuredDeliberationResult | undefined;
+      let roundsCompleted = 0;
+      let roundStopReason: RunResult['roundStopReason'] | undefined;
+      let roundStopDetail: string | undefined;
       const enableAC =
         this.options.request.enableAutoChallenge ??
         this.options.adversarialConfig.autoChallenge.enabled;
@@ -275,7 +283,7 @@ export class AdversarialEngine extends EventEmitter {
         this.snapshot.phase = 'generating';
         this.emitEvent('phase-change', { phase: 'generating' });
 
-        const prior = round > 1 ? { responses, challenges } : undefined;
+        const prior = round > 1 ? { responses, challenges, structuredDeliberation } : undefined;
         responses = await this.runGenerating(prior);
         if (round === 1) {
           blindResponses = responses;
@@ -312,6 +320,20 @@ export class AdversarialEngine extends EventEmitter {
           challenges = [];
           this.snapshot.challenges = [];
         }
+        roundsCompleted = round;
+        const decision = this.decideRoundContinuation({
+          round,
+          minRounds,
+          maxRounds,
+          enableAutoChallenge: enableAC,
+          challenges,
+          structuredDeliberation,
+        });
+        if (!decision.continue) {
+          roundStopReason = decision.reason;
+          roundStopDetail = decision.detail;
+          break;
+        }
       }
 
       // ==== Phase: User Opinion Review ====
@@ -344,8 +366,13 @@ export class AdversarialEngine extends EventEmitter {
         structuredDeliberation,
         voting,
         userOpinion,
+        roundStopReason,
+        roundStopDetail,
       });
       this.snapshot.protocolOutput = protocolOutput;
+      this.snapshot.roundsCompleted = roundsCompleted;
+      this.snapshot.roundStopReason = roundStopReason;
+      this.snapshot.roundStopDetail = roundStopDetail;
 
       this.snapshot.phase = 'complete';
       this.snapshot.finishedAt = Date.now();
@@ -361,6 +388,9 @@ export class AdversarialEngine extends EventEmitter {
         protocolOutput,
         metrics,
         durationMs: Date.now() - start,
+        roundsCompleted,
+        roundStopReason,
+        roundStopDetail,
       };
       this.emitEvent('run-complete', { result });
 
@@ -385,7 +415,8 @@ export class AdversarialEngine extends EventEmitter {
 
   private buildRefinementMessage(
     prevResponses: ModelResponse[],
-    prevChallenges: Challenge[]
+    prevChallenges: Challenge[],
+    structuredDeliberation?: StructuredDeliberationResult
   ): string {
     const parts: string[] = ['【上一轮各模型给出的回答】'];
     for (const r of prevResponses) {
@@ -402,6 +433,33 @@ export class AdversarialEngine extends EventEmitter {
         );
       }
     }
+    if (structuredDeliberation) {
+      const requiredDirectives = structuredDeliberation.revisionDirectives.filter(d => d.required);
+      const consensusRisks = structuredDeliberation.consensusRisks.filter(r => r.severity !== 'low');
+      const minoritySignals = structuredDeliberation.minorityProtection;
+      const identitySignals = structuredDeliberation.identityDriftSignals;
+      if (
+        requiredDirectives.length > 0 ||
+        consensusRisks.length > 0 ||
+        minoritySignals.length > 0 ||
+        identitySignals.length > 0
+      ) {
+        parts.push('\n\n【结构化黑板控制信号】');
+        parts.push('这些不是用户意见，也不是投票结果；它们是协议控制器根据盲答生成的待处理风险。');
+        for (const signal of identitySignals.slice(0, 6)) {
+          parts.push(`- 身份漂移: ${signal.modelId} 声称 ${signal.claimedIdentity}; ${signal.reason}`);
+        }
+        for (const risk of consensusRisks.slice(0, 6)) {
+          parts.push(`- 共识风险: ${risk.clusterId}; ${risk.reason}`);
+        }
+        for (const signal of minoritySignals.slice(0, 6)) {
+          parts.push(`- 少数派保护: ${signal.modelId}/${signal.claimId}; ${signal.reason}`);
+        }
+        for (const directive of requiredDirectives.slice(0, 8)) {
+          parts.push(`- 必须修正: ${directive.modelId}; ${directive.reason}`);
+        }
+      }
+    }
     const userOpinionBlock = this.buildUserOpinionRefinementBlock();
     if (userOpinionBlock) {
       parts.push(userOpinionBlock);
@@ -412,6 +470,69 @@ export class AdversarialEngine extends EventEmitter {
         '直接给出新的完整回答，不要用 "我同意" 之类的元评论开头。'
     );
     return parts.join('\n');
+  }
+
+  private decideRoundContinuation(input: {
+    round: number;
+    minRounds: number;
+    maxRounds: number;
+    enableAutoChallenge: boolean;
+    challenges: Challenge[];
+    structuredDeliberation?: StructuredDeliberationResult;
+  }): { continue: boolean; reason?: RunResult['roundStopReason']; detail?: string } {
+    if (input.maxRounds <= 1) {
+      return { continue: false, reason: 'single-round', detail: 'configured maxRounds=1' };
+    }
+    if (input.round < input.minRounds) {
+      return { continue: true };
+    }
+
+    const reasons = this.roundContinuationReasons(input);
+    if (input.round >= input.maxRounds) {
+      return {
+        continue: false,
+        reason: reasons.length > 0 ? 'max-rounds' : 'converged',
+        detail: reasons.length > 0
+          ? `Reached maxRounds=${input.maxRounds} with unresolved signals: ${reasons.join('; ')}`
+          : 'No unresolved continuation signal at max round.',
+      };
+    }
+    if (reasons.length > 0) {
+      return { continue: true, detail: reasons.join('; ') };
+    }
+    return {
+      continue: false,
+      reason: 'converged',
+      detail: 'No configured medium/high challenge or required blackboard revision remains.',
+    };
+  }
+
+  private roundContinuationReasons(input: {
+    round: number;
+    enableAutoChallenge: boolean;
+    challenges: Challenge[];
+    structuredDeliberation?: StructuredDeliberationResult;
+  }): string[] {
+    const cfg = this.options.adversarialConfig.roundControl;
+    const reasons: string[] = [];
+    if (input.enableAutoChallenge) {
+      const high = input.challenges.filter(c => c.severity === 'high').length;
+      const medium = input.challenges.filter(c => c.severity === 'medium').length;
+      if ((cfg?.continueOnHighSeverityChallenge ?? true) && high > 0) {
+        reasons.push(`${high} high-severity challenge(s)`);
+      }
+      if ((cfg?.continueOnMediumSeverityChallenge ?? true) && medium > 0) {
+        reasons.push(`${medium} medium-severity challenge(s)`);
+      }
+    }
+    if (
+      input.round === 1 &&
+      (cfg?.continueOnRequiredRevision ?? true) &&
+      (input.structuredDeliberation?.revisionDirectives ?? []).some(d => d.required)
+    ) {
+      reasons.push('required structured-blackboard revision');
+    }
+    return reasons;
   }
 
   private buildUserOpinionRefinementBlock(): string {
@@ -466,7 +587,11 @@ export class AdversarialEngine extends EventEmitter {
   }
 
   private async runGenerating(
-    prior?: { responses: ModelResponse[]; challenges: Challenge[] }
+    prior?: {
+      responses: ModelResponse[];
+      challenges: Challenge[];
+      structuredDeliberation?: StructuredDeliberationResult;
+    }
   ): Promise<ModelResponse[]> {
     const { request, models, signal } = this.options;
     const sharedMessages: Message[] = [
@@ -490,7 +615,11 @@ export class AdversarialEngine extends EventEmitter {
               ...baseMessages,
               {
                 role: 'user',
-                content: this.buildRefinementMessage(prior.responses, prior.challenges),
+                content: this.buildRefinementMessage(
+                  prior.responses,
+                  prior.challenges,
+                  prior.structuredDeliberation
+                ),
               },
             ]
           : baseMessages;

@@ -88,7 +88,8 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 
 ### Multi-model adversarial loop
 - Mix any vendors: OpenAI / Anthropic / Ollama protocols, OpenAI-compatible proxies (SiliconFlow, local multi-model gateways) all work
-- **Multi-round**: 2 rounds by default; each round sees the previous round's answers and critiques to refine
+- **Multi-round**: minimum 2 rounds and maximum 4 rounds by default; each refinement round sees the previous answers, critiques, and blackboard control signals
+- **Adaptive round control**: `maxRounds` is a safety cap; after the minimum rounds, AAP keeps going while high/medium challenges or required blackboard revisions remain, and marks review required if the cap is reached unresolved
 - **Weighted voting**: per-model weights; modes are majority / weighted / consensus / unanimous
 
 ### Truth grounding (Tier 3)
@@ -121,6 +122,7 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 
 ### Observability (TUI)
 - Live streaming output and token counts per model
+- Final truth-seeking contract summary near the top of the run detail: representative answer, confidence, review state, and stop reason
 - Cross-model challenges (type / severity / confidence / cited fragment / reason)
 - **Tool-call panel**: which model called which tool, ok/✗, result preview
 - Structured blackboard panel for consensus risk, identity drift, minority protection, and revision directives

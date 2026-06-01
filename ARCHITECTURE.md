@@ -17,7 +17,7 @@ TUI (ink)  ──┐                  ┌── HTTP Server (Hono)
              │                  │
              └──> EngineHub <───┘     ← global EventEmitter singleton
                      │
-                     └── AdversarialEngine (per-run)
+                              └── AdversarialEngine (per-run)
                               │
                               └── ModelClient
                                     ├── openai-protocol
@@ -96,7 +96,7 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 ### 3.1 TUI-triggered run
 1. User presses `n`, picks models, and types the question. After blind answers are visible, the user may press `[u]` to add opinion/evidence links as claims to verify.
 2. `App.tsx` → `hub.startRun({ question, modelIds, source: 'tui-input' })`; later `[u]` updates the selected run with `userOpinion`.
-3. After the blind first pass, the engine emits `deliberation-result`: the blackboard records structured claims, evidence refs, low-independence consensus risk, identity drift, minority protection, and revision directives before any user opinion is introduced.
+3. After the blind first pass, the engine emits `deliberation-result`: the blackboard records structured claims, evidence refs, low-independence consensus risk, identity drift, minority protection, and revision directives before any user opinion is introduced. Required blackboard revision directives are injected into the next refinement prompt.
 4. `useHub` receives `engine-event`s, updates React state, panels re-render with each `chunk`.
 5. On `run-complete`, audit metrics and model-profile events are written to disk.
 
@@ -112,7 +112,16 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 9. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
 10. Run metadata is converted into model-profile events. The next run uses stored profile scores plus current sycophancy and identity-drift signals to adjust voting weights.
 
-### 3.3 Calibration feedback loop
+### 3.3 Adaptive round control
+`adversarial.maxRounds` is a safety cap, not a claim that truth has been reached. The engine runs at least `adversarial.roundControl.minRounds`; after that it continues while configured continuation signals remain:
+
+- high-severity challenges;
+- medium-severity challenges;
+- required structured-blackboard revision directives from the blind first pass.
+
+If no continuation signal remains, the run stops as `converged`. If `maxRounds` is reached while such signals remain, the run stops as `max-rounds` and the protocol output contract marks review required.
+
+### 3.4 Calibration feedback loop
 1. After a real-world outcome is known, the operator runs `aap calibration add --model <id> --task-type <type> --probability <p> --outcome true|false`.
 2. A lightweight calibration record is appended to `calibration-memory.json`.
 3. The same outcome is also appended to `model-profiles.json` as a `calibration_result` event.
@@ -129,6 +138,12 @@ interface AppConfig {
   adversarial: {
     autoChallenge: { enabled: boolean; threshold: number };
     voting: { enabled: boolean; mode: 'majority'|'weighted'|'consensus'|'unanimous' };
+    roundControl?: {
+      minRounds: number;
+      continueOnHighSeverityChallenge: boolean;
+      continueOnMediumSeverityChallenge: boolean;
+      continueOnRequiredRevision: boolean;
+    };
   };
   storageDir: string;
 }

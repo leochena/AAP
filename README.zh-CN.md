@@ -294,6 +294,9 @@ aap config path                  # 打印 config.json 路径
 
 aap probe [ids...] [--all]       # 探测 tool-calling 能力
 aap tools list                   # 显示工具配置 + 模型能力状态
+aap profile list                 # 查看模型画像、附和风险和投票权重倍率
+aap calibration add --model <id> --task-type <type> --probability <0-1> --outcome true|false
+aap calibration summary          # 查看事后结果回填后的校准汇总
 ```
 
 ---
@@ -304,6 +307,8 @@ aap tools list                   # 显示工具配置 + 模型能力状态
 - `config.json` — 模型 + 服务器配置
 - `audit-metrics.json` — 每个模型的累计 reliability score
 - `capabilities.json` — tool-calling 能力探测缓存（TTL 24h）
+- `model-profiles.json` — 每次运行自动生成的模型表现事件，用于下次动态调权
+- `calibration-memory.json` — 事后真实结果回填记录，用于概率校准
 
 ---
 

@@ -56,6 +56,12 @@ export interface ModelCapabilityProfile {
   labels?: string[];
 }
 
+export interface ModelProfileStore {
+  schemaVersion: 1;
+  profiles: Record<string, ModelCapabilityProfile>;
+  updatedAt?: number;
+}
+
 export interface CapabilityScore {
   capability: ModelCapability;
   score: number | null;

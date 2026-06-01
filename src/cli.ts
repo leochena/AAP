@@ -14,6 +14,8 @@ import React from 'react';
 import { render } from 'ink';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import packageJson from '../package.json';
 import { loadConfig, saveConfig, addModel, removeModel, updateModel, DEFAULT_STORAGE_DIR } from '@/config/loader';
 import { ModelConfig, ModelProtocol } from '@/lib/types';
@@ -23,6 +25,23 @@ import { App } from '@/tui/App';
 import { listOpenAIModels, listOllamaModels } from '@/lib/clients/discovery';
 import { probeToolCalling } from '@/engine/capability-probe';
 import { setCapability, loadCapabilityCache } from '@/engine/capability-cache';
+import {
+  appendCalibrationRecord,
+  aggregateCalibration,
+  calculateBrierScore,
+  calculateLogLoss,
+  CALIBRATION_MEMORY_STORE_FILENAME,
+  loadCalibrationStore,
+  summarizeCalibrationByTaskType,
+} from '@/lib/features/calibration-memory';
+import {
+  appendProfileEvents,
+  loadModelProfileStore,
+  MODEL_PROFILE_STORE_FILENAME,
+  modelProfileVoteMultiplier,
+  scoreModelProfile,
+} from '@/lib/features/model-profile';
+import type { CalibrationRecord } from '@/lib/features/calibration-memory';
 
 const program = new Command();
 program
@@ -255,6 +274,135 @@ toolsCmd
     }
   });
 
+// ===== model profile / calibration commands =====
+
+const profileCmd = program.command('profile').description('查看模型画像和动态权重');
+
+profileCmd
+  .command('list')
+  .description('列出模型画像分数、附和风险和投票权重倍率')
+  .option('--task-type <type>', '按任务类型过滤画像事件')
+  .action((opts: { taskType?: string }) => {
+    const cfg = loadConfig();
+    const store = loadModelProfileStore(join(cfg.storageDir, MODEL_PROFILE_STORE_FILENAME));
+    const profiles = Object.values(store.profiles);
+    if (profiles.length === 0) {
+      console.log('(暂无模型画像；完成一次对抗运行后会自动生成)');
+      return;
+    }
+    for (const profile of profiles.sort((a, b) => a.modelId.localeCompare(b.modelId))) {
+      const score = scoreModelProfile(profile, { taskType: opts.taskType });
+      console.log(
+        `${profile.modelId.padEnd(28)} score=${score.overallScore.toFixed(3)} ` +
+          `confidence=${score.confidence.toFixed(3)} vote×${modelProfileVoteMultiplier(score).toFixed(3)} ` +
+          `sycophancy=${score.sycophancyRisk} events=${score.eventCount}`
+      );
+      if (score.reviewReasons.length > 0) {
+        console.log(`  review: ${score.reviewReasons.join('; ')}`);
+      }
+    }
+  });
+
+const calibrationCmd = program.command('calibration').description('回填真实结果并查看校准记忆');
+
+calibrationCmd
+  .command('add')
+  .description('事后回填某个模型预测/裁决的真实结果')
+  .requiredOption('--model <id>', '模型 id')
+  .requiredOption('--task-type <type>', '任务类型，例如 adjudication:user-opinion')
+  .requiredOption('--probability <number>', '当时输出的置信度/概率，0-1')
+  .requiredOption('--outcome <true|false>', '后续证明是否正确')
+  .option('--run-id <id>', '关联 run id')
+  .option('--claim-id <id>', '关联 claim id')
+  .option('--verdict-id <id>', '关联 verdict id')
+  .option('--weight <number>', '记录权重', v => parseFloat(v))
+  .option('--notes <text>', '备注')
+  .action((opts: {
+    model: string;
+    taskType: string;
+    probability: string;
+    outcome: string;
+    runId?: string;
+    claimId?: string;
+    verdictId?: string;
+    weight?: number;
+    notes?: string;
+  }) => {
+    const cfg = loadConfig();
+    const probability = parseProbability(opts.probability);
+    const outcome = parseOutcome(opts.outcome);
+    const record: CalibrationRecord = {
+      id: randomUUID(),
+      modelId: opts.model,
+      taskType: opts.taskType,
+      predictedProbability: probability,
+      outcome,
+      timestamp: Date.now(),
+      runId: opts.runId,
+      claimId: opts.claimId,
+      verdictId: opts.verdictId,
+      weight: opts.weight,
+      notes: opts.notes,
+    };
+    const calibrationPath = join(cfg.storageDir, CALIBRATION_MEMORY_STORE_FILENAME);
+    appendCalibrationRecord(calibrationPath, record);
+
+    const brierScore = calculateBrierScore(record);
+    const logLoss = calculateLogLoss(record);
+    appendProfileEvents(join(cfg.storageDir, MODEL_PROFILE_STORE_FILENAME), [
+      {
+        id: `calibration:${record.id}`,
+        modelId: record.modelId,
+        type: 'calibration_result',
+        taskType: record.taskType,
+        timestamp: record.timestamp,
+        brierScore,
+        logLoss,
+        sampleCount: 1,
+        weight: record.weight,
+        source: 'calibration-cli',
+        notes: record.notes,
+      },
+    ]);
+
+    console.log(`✓ calibration recorded for ${record.modelId}`);
+    console.log(`  brier=${brierScore.toFixed(6)} logLoss=${logLoss.toFixed(6)}`);
+  });
+
+calibrationCmd
+  .command('summary')
+  .description('查看校准记忆汇总')
+  .option('--task-type <type>', '只看某类任务')
+  .option('--model <id>', '只看某个模型')
+  .action((opts: { taskType?: string; model?: string }) => {
+    const cfg = loadConfig();
+    const store = loadCalibrationStore(join(cfg.storageDir, CALIBRATION_MEMORY_STORE_FILENAME));
+    const records = store.records.filter(record => {
+      if (opts.taskType && record.taskType !== opts.taskType) return false;
+      if (opts.model && record.modelId !== opts.model) return false;
+      return true;
+    });
+    if (records.length === 0) {
+      console.log('(暂无校准记录)');
+      return;
+    }
+    const aggregate = aggregateCalibration(records);
+    console.log(
+      `records=${aggregate.count} brier=${formatMetric(aggregate.brierScore)} ` +
+        `logLoss=${formatMetric(aggregate.logLoss)} calibrationError=${formatMetric(aggregate.calibrationError)} ` +
+        `accuracy=${formatMetric(aggregate.accuracy)}`
+    );
+    for (const summary of summarizeCalibrationByTaskType(records)) {
+      console.log(`\n[${summary.taskType}] brier=${formatMetric(summary.aggregate.brierScore)} records=${summary.aggregate.count}`);
+      for (const [modelId, modelAggregate] of Object.entries(summary.byModel)) {
+        console.log(
+          `  ${modelId.padEnd(28)} brier=${formatMetric(modelAggregate.brierScore)} ` +
+            `logLoss=${formatMetric(modelAggregate.logLoss)} records=${modelAggregate.count}`
+        );
+      }
+    }
+  });
+
 program.parseAsync().catch(err => {
   console.error(err);
   process.exit(1);
@@ -345,6 +493,27 @@ function parseSelection(input: string, max: number): number[] {
     }
   }
   return [...indices].sort((a, b) => a - b);
+}
+
+function parseProbability(raw: string): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    console.error('--probability must be a number between 0 and 1');
+    process.exit(1);
+  }
+  return value;
+}
+
+function parseOutcome(raw: string): boolean {
+  const value = raw.trim().toLowerCase();
+  if (['true', 'yes', '1', 'correct', 'right'].includes(value)) return true;
+  if (['false', 'no', '0', 'incorrect', 'wrong'].includes(value)) return false;
+  console.error('--outcome must be true or false');
+  process.exit(1);
+}
+
+function formatMetric(value: number | null): string {
+  return value === null ? 'n/a' : value.toFixed(6);
 }
 
 async function interactiveAdd(): Promise<void> {

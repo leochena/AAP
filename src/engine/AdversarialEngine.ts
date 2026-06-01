@@ -11,6 +11,7 @@
 
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { join } from 'path';
 import {
   AdversarialConfig,
   Challenge,
@@ -64,6 +65,14 @@ import {
   updateMetrics,
 } from '@/lib/features/audit-metrics';
 import { buildProtocolOutputContract } from '@/lib/features/output-contract';
+import {
+  appendProfileEvents,
+  buildProfileEventsFromRun,
+  loadModelProfileStore,
+  MODEL_PROFILE_STORE_FILENAME,
+  modelProfileVoteMultiplier,
+  scoreModelProfile,
+} from '@/lib/features/model-profile';
 import {
   buildUserOpinionResult,
   extractUserClaims,
@@ -318,6 +327,10 @@ export class AdversarialEngine extends EventEmitter {
       this.flushAuditMetrics(metrics).catch(err => {
         // eslint-disable-next-line no-console
         console.warn(`[run ${this.runId}] audit metrics flush failed:`, err);
+      });
+      this.flushModelProfileEvents(result).catch(err => {
+        // eslint-disable-next-line no-console
+        console.warn(`[run ${this.runId}] model profile flush failed:`, err);
       });
 
       return result;
@@ -789,18 +802,26 @@ export class AdversarialEngine extends EventEmitter {
   }
 
   private buildVoteWeights(): Record<string, number> | undefined {
-    const scores = this.snapshot.userOpinion?.modelSycophancyScores ?? [];
-    if (scores.length === 0) return undefined;
+    const sycophancyScores = this.snapshot.userOpinion?.modelSycophancyScores ?? [];
+    const profileStore = loadModelProfileStore(this.modelProfileStorePath());
+    let hasAdjustment = sycophancyScores.length > 0;
     const weights: Record<string, number> = {};
     for (const model of this.modelMap.values()) {
-      const score = scores.find(s => s.modelId === model.id);
+      const sycophancyScore = sycophancyScores.find(s => s.modelId === model.id);
+      const profile = profileStore.profiles[model.id];
+      const profileMultiplier = profile
+        ? modelProfileVoteMultiplier(scoreModelProfile(profile, { taskType: this.inferTaskType() }))
+        : 1;
+      if (profile && profileMultiplier !== 1) hasAdjustment = true;
       const base =
         this.options.adversarialConfig.voting.mode === 'majority'
           ? 1
           : model.weight ?? 1.0;
-      weights[model.id] = Number((base * (score?.penaltyMultiplier ?? 1)).toFixed(4));
+      weights[model.id] = Number(
+        (base * (sycophancyScore?.penaltyMultiplier ?? 1) * profileMultiplier).toFixed(4)
+      );
     }
-    return weights;
+    return hasAdjustment ? weights : undefined;
   }
 
   private computeAuditMetrics(
@@ -826,5 +847,33 @@ export class AdversarialEngine extends EventEmitter {
       updateMetrics(modelId, m, this.options.storageDir)
     );
     await Promise.all(writes);
+  }
+
+  private async flushModelProfileEvents(result: RunResult): Promise<void> {
+    const events = buildProfileEventsFromRun({
+      runId: result.runId,
+      taskType: this.inferTaskType(),
+      timestamp: Date.now(),
+      responses: result.responses,
+      challenges: result.challenges,
+      userOpinion: result.userOpinion,
+      voting: result.voting,
+    });
+    if (events.length === 0) return;
+    appendProfileEvents(this.modelProfileStorePath(), events, {
+      baseWeights: Object.fromEntries(
+        [...this.modelMap.values()].map(model => [model.id, model.weight ?? 1])
+      ),
+    });
+  }
+
+  private modelProfileStorePath(): string {
+    return join(this.options.storageDir, MODEL_PROFILE_STORE_FILENAME);
+  }
+
+  private inferTaskType(): string {
+    return this.options.request.userOpinion
+      ? 'adjudication:user-opinion'
+      : 'adjudication:general';
   }
 }

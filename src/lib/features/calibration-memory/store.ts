@@ -3,6 +3,7 @@ import { dirname } from 'path';
 import { CalibrationRecord, CalibrationRecordFilter, CalibrationStore } from './types';
 
 const SCHEMA_VERSION = 1;
+export const CALIBRATION_MEMORY_STORE_FILENAME = 'calibration-memory.json';
 
 export function createCalibrationStore(records: CalibrationRecord[] = []): CalibrationStore {
   const store: CalibrationStore = {

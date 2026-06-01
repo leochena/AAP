@@ -291,6 +291,9 @@ aap config path                  # print config.json path
 
 aap probe [ids...] [--all]       # probe tool-calling support
 aap tools list                   # show tool config + per-model capability
+aap profile list                 # show model profile, sycophancy risk, vote multiplier
+aap calibration add --model <id> --task-type <type> --probability <0-1> --outcome true|false
+aap calibration summary          # summarize later outcome feedback
 ```
 
 ---
@@ -301,6 +304,8 @@ Under `~/.aap/`:
 - `config.json` — models + server config
 - `audit-metrics.json` — cumulative reliability score per model
 - `capabilities.json` — tool-calling capability cache (TTL 24 h)
+- `model-profiles.json` — lightweight per-run model profile events for future dynamic weighting
+- `calibration-memory.json` — later outcome feedback for probability / verdict calibration
 
 ---
 

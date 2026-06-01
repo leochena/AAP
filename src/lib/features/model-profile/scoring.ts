@@ -169,6 +169,15 @@ export function suggestModelRoles(
   return suggestions;
 }
 
+export function modelProfileVoteMultiplier(score: ModelProfileScore): number {
+  if (score.eventCount === 0) return 1;
+  if (score.confidence < 0.2 && score.sycophancyRisk === 'none') return 1;
+  const qualityMultiplier = 0.5 + score.overallScore;
+  const confidenceBlended = 1 + (qualityMultiplier - 1) * score.confidence;
+  const riskPenalty = sycophancyRiskPenalty(score.sycophancyRisk);
+  return roundScore(clamp(confidenceBlended * riskPenalty, 0.35, 1.5));
+}
+
 function relevantEvents(
   profile: ModelCapabilityProfile,
   taskType: string | undefined
@@ -428,6 +437,19 @@ function severityPenalty(severity: ProfileSeverity): number {
   }
 }
 
+function sycophancyRiskPenalty(risk: 'none' | ProfileSeverity): number {
+  switch (risk) {
+    case 'high':
+      return 0.65;
+    case 'medium':
+      return 0.85;
+    case 'low':
+      return 0.95;
+    case 'none':
+      return 1;
+  }
+}
+
 function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
@@ -435,6 +457,11 @@ function average(values: number[]): number {
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
 }
 
 function roundScore(value: number): number {

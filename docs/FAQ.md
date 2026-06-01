@@ -22,6 +22,10 @@ Yes. Pass `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` throu
 
 The first model answer is blind: it does not see the user opinion. If a model later supports a non-preference user claim without evidence, AAP records a sycophancy signal and applies a per-run vote-weight penalty. The output also includes an adoption matrix and evidence graph so users can see which claim was supported, refuted, or left unresolved.
 
+## How does AAP improve as models improve?
+
+AAP does not hard-code provider rankings. Each run writes lightweight model-profile events to `~/.aap/model-profiles.json`: blind answer completion, tool use, evidence review, challenge behavior, and anti-sycophancy signals. Future voting reads those profiles and adjusts weights by measured behavior. When a later real-world outcome is known, add it with `aap calibration add`; that writes `calibration-memory.json` and feeds a calibration event back into the model profile. Raw confidence alone is not treated as truth.
+
 ## Why probe tool-calling capability?
 
 Many OpenAI-compatible gateways list models that do not actually support function/tool calling. AAP probes capability before tool-grounded runs and caches the result for 24 hours. Unsupported models can still be used in non-tool mode.

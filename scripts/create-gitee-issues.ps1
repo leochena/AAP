@@ -9,6 +9,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $Token) {
+  $Token = $env:GITEE_ACCESS_TOKEN
+}
+if (-not $Token) {
+  $Token = [Environment]::GetEnvironmentVariable("GITEE_TOKEN", "User")
+}
+if (-not $Token) {
+  $Token = [Environment]::GetEnvironmentVariable("GITEE_ACCESS_TOKEN", "User")
+}
+if (-not $Token) {
+  $Token = [Environment]::GetEnvironmentVariable("GITEE_TOKEN", "Machine")
+}
+if (-not $Token) {
+  $Token = [Environment]::GetEnvironmentVariable("GITEE_ACCESS_TOKEN", "Machine")
+}
+
 function Read-BacklogIssues {
   param([string]$Path)
 
@@ -47,13 +63,30 @@ if ($DryRun) {
 }
 
 if (-not $Token) {
-  throw "Missing Gitee token. Set `$env:GITEE_TOKEN or pass -Token. Use -DryRun to preview without creating issues."
+  throw "Missing Gitee token. Set `$env:GITEE_TOKEN or `$env:GITEE_ACCESS_TOKEN, or pass -Token. Use -DryRun to preview without creating issues."
 }
 
-$uri = "https://gitee.com/api/v5/repos/$Owner/$Repo/issues"
+# Gitee creates repository issues via /repos/{owner}/issues and requires
+# the target repository path in the form body as `repo`.
+$uri = "https://gitee.com/api/v5/repos/$Owner/issues"
+$existingUri = "https://gitee.com/api/v5/repos/$Owner/$Repo/issues?access_token=$Token&state=open&per_page=100"
+$existing = Invoke-RestMethod -Method Get -Uri $existingUri -TimeoutSec 30
+$existingTitles = @{}
+foreach ($item in $existing) {
+  if ($item.title) {
+    $existingTitles[$item.title] = $true
+  }
+}
+
 foreach ($issue in $issues) {
+  if ($existingTitles.ContainsKey($issue.Title)) {
+    Write-Output ("skip existing: " + $issue.Title)
+    continue
+  }
+
   $body = @{
     access_token = $Token
+    repo = $Repo
     title = $issue.Title
     body = "Labels: $($issue.Labels)`n`n$($issue.Body)"
   }

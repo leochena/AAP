@@ -4,6 +4,27 @@ This file defines the behavioral constraints and operational standards for all A
 
 ## 🛠 Project-Specific Guidelines
 
+### Non-negotiable north star
+AAP is a **lightweight, model-evolving adversarial adjudication protocol**. It is not a sports predictor, election predictor, standards database, local research institution, or large local knowledge warehouse.
+
+Every core change must strengthen at least one of these protocol primitives:
+- **Blind-first user-claim protocol**: models answer before seeing user opinion; user opinion enters later only as claims to verify.
+- **Evidence-adversarial graph**: user claims, model claims, evidence, challenges, conflicts, and verdicts are connected by explicit support/refute/qualify/depend/conflict edges.
+- **Anti-sycophancy mechanism**: models that support user claims without evidence are detected, penalized, and surfaced in the output.
+- **Model-evolving controller**: model roles, weights, and trust must come from capability probing, benchmark performance, and calibration history, not hard-coded provider prestige.
+- **Calibration memory**: store lightweight adjudication metadata and later outcomes for scoring and calibration; do not build a bulky local corpus by default.
+- **Plugin boundary**: external data sources, search providers, domain examples, and benchmark datasets should be replaceable plugins, not baked into the protocol core.
+
+Protocol drift is a blocking defect. Do not merge or present as complete any change that:
+- turns AAP into a domain-specific predictor as the core product;
+- requires a large local data institution to be useful;
+- treats user opinion as an instruction, vote, or fact source;
+- hard-codes conclusions, model rankings, provider superiority, or current-event assumptions;
+- weakens evidence traceability, uncertainty reporting, or anti-sycophancy behavior;
+- adds a domain module that cannot be framed as an example, benchmark, or plugin around the generic protocol.
+
+Before implementing a feature, identify the protocol primitive it improves. If it does not improve one, keep it in `docs/`, `examples/`, or tests/benchmarks instead of core runtime code. The target output contract is always: conclusion, confidence/probability when applicable, evidence chain, conflict points, user-claim adoption/rejection, sycophancy risk, and explicit uncertainty or review conditions.
+
 ### Stack reality check
 This project was migrated from a Next.js Web UI to a **Node.js CLI + HTTP server**. There is no Next.js, no Tailwind, no Web UI, no React DOM, no `src/app/`. If something still references those, it's stale and should be removed, not preserved.
 - Front-end: **ink** (React-for-CLI). It shares React but not components with browser React.

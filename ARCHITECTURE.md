@@ -2,6 +2,12 @@
 
 Technical map for the repository. Defines module responsibilities and data flow so future contributors (human or AI) stay aligned.
 
+## 0. Product North Star
+
+AAP is a lightweight, model-evolving adversarial adjudication protocol. The core runtime must stay domain-agnostic and should improve as stronger external models are plugged in. Domain-specific modules such as sports, elections, standards, finance, or legal workflows are examples, plugins, or benchmarks unless they generalize into protocol primitives.
+
+The governing rules live in `AGENTS.md`; the product and algorithm north star lives in `docs/PROJECT_NORTH_STAR.md`.
+
 ## 1. Runtime Shape
 
 `aap` is a single Node.js process that runs **two front-ends sharing one event bus**:

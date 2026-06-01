@@ -14,6 +14,14 @@
 
 模型可能声称自己"搜索过"或"查证过"，但实际上没有调用任何工具。AAP 会记录真实工具调用，并在 TUI 中显示哪个模型调用了 `search`、`fetch_url`、`exec_python` 或 `concede`。
 
+## 用户意见能参与对抗吗？
+
+可以。HTTP API 支持 `user_opinion`、`user_evidence`、`x_adversarial.user_opinion`，TUI 也可以输入用户意见。AAP 会把文本拆成 claim，在 `fetch_url` 启用时抓取证据链接，让模型在盲审第一轮之后逐条评审，最终输出采纳 / 反驳 / 部分采纳 / 证据不足。用户意见不会直接获得投票权。
+
+## 怎么避免模型附和用户？
+
+第一轮模型回答是盲审，不看用户意见。如果模型后续在没有证据的情况下支持非偏好类用户 claim，AAP 会记录反附和信号，并给该模型本轮投票权重惩罚。输出还包含采纳矩阵和证据图，用来追踪每条 claim 为什么被采纳、反驳或保持不确定。
+
 ## 为什么要探测 tool-calling 能力？
 
 很多 OpenAI-compatible 网关会列出模型，但其中一部分并不真正支持 function/tool calling。AAP 会在工具接地运行前探测能力，并缓存 24 小时。不支持工具调用的模型仍然可以用于非工具模式。
@@ -31,6 +39,16 @@ aap config add
 ```
 
 交互式流程会调用 `/v1/models`，列出可用模型，允许多选保存，并在完成后继续添加下一个 endpoint，不需要重启程序。
+
+## 第三方 Opus、DeepSeek、Qwen 平台怎么配置？
+
+如果平台是 OpenAI-compatible，用 `--protocol openai`，base URL 通常以 `/v1` 结尾：
+
+```bash
+aap config add my-model --protocol openai --base-url https://provider.example/v1 --api-key sk-... --model provider/model-id
+```
+
+Anthropic 原生协议没有公开 model-list 接口，需要显式填写 `--model`。搜索功能依赖单独的 SearXNG 地址 `adversarial.tools.searxngUrl`；AAP server、SearXNG、模型 provider 是三类不同地址。不要把真实 API key 发到 issue、PR、日志或聊天记录。
 
 ## 为什么没有 Web UI？
 

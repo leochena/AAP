@@ -211,12 +211,81 @@ export interface SycophancySignal {
   reason: string;
 }
 
+export interface ModelSycophancyScore {
+  modelId: string;
+  signalCount: number;
+  maxSeverity: 'none' | 'low' | 'medium' | 'high';
+  /** Multiplier applied to this model's vote weight for the current run. */
+  penaltyMultiplier: number;
+  reason: string;
+}
+
+export interface EvidenceFetchResult {
+  url: string;
+  status: 'fetched' | 'failed' | 'skipped';
+  ok: boolean;
+  statusCode?: number;
+  title?: string;
+  contentType?: string;
+  preview?: string;
+  error?: string;
+}
+
+export type DebateGraphNodeType =
+  | 'user_claim'
+  | 'model_answer'
+  | 'evidence'
+  | 'challenge'
+  | 'verdict';
+
+export interface DebateGraphNode {
+  id: string;
+  type: DebateGraphNodeType;
+  label: string;
+  refId?: string;
+  meta?: Record<string, unknown>;
+}
+
+export type DebateGraphEdgeRelation =
+  | 'supports'
+  | 'refutes'
+  | 'qualifies'
+  | 'depends_on'
+  | 'assesses'
+  | 'produces';
+
+export interface DebateGraphEdge {
+  from: string;
+  to: string;
+  relation: DebateGraphEdgeRelation;
+  strength: number;
+  source: string;
+}
+
+export interface DebateGraph {
+  nodes: DebateGraphNode[];
+  edges: DebateGraphEdge[];
+}
+
+export interface UserClaimAdoptionRow {
+  claimId: string;
+  claimText: string;
+  status: UserClaimVerdictStatus;
+  byModel: Record<string, UserClaimAssessmentStance>;
+  evidenceStatuses: Array<{ url: string; status: EvidenceFetchResult['status']; ok: boolean }>;
+  sycophancyRiskModels: string[];
+}
+
 export interface UserOpinionResult {
   input: UserOpinionInput;
   claims: UserClaim[];
+  evidenceResults: EvidenceFetchResult[];
   assessments: UserClaimAssessment[];
   verdicts: UserClaimVerdict[];
   sycophancySignals: SycophancySignal[];
+  modelSycophancyScores: ModelSycophancyScore[];
+  adoptionMatrix: UserClaimAdoptionRow[];
+  graph: DebateGraph;
   summary: string;
 }
 

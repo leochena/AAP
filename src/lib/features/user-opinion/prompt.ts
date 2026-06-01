@@ -1,9 +1,10 @@
-import { ModelResponse, UserClaim } from '@/lib/types';
+import { EvidenceFetchResult, ModelResponse, UserClaim } from '@/lib/types';
 
 export function generateUserClaimReviewPrompt(input: {
   question: string;
   claim: UserClaim;
   blindResponses: ModelResponse[];
+  evidenceResults?: EvidenceFetchResult[];
 }): string {
   const responses = input.blindResponses
     .filter(r => !r.error && r.content)
@@ -16,6 +17,9 @@ export function generateUserClaimReviewPrompt(input: {
   const urls = input.claim.evidenceUrls.length > 0
     ? input.claim.evidenceUrls.map(u => `- ${u}`).join('\n')
     : '(用户未提供证据链接)';
+  const evidenceBlock = formatEvidenceResults(
+    (input.evidenceResults ?? []).filter(e => input.claim.evidenceUrls.includes(e.url))
+  );
 
   return `
 你正在评审用户意见中的一条 claim。用户意见不是事实来源，也没有投票权；你的任务是判断它是否被证据和盲审回答支持。
@@ -30,6 +34,9 @@ ID: ${input.claim.id}
 
 【用户提供的证据链接】
 ${urls}
+
+【已抓取的证据状态与摘要】
+${evidenceBlock}
 
 【模型盲审回答（这些回答是在看到用户意见之前生成的）】
 ${responses || '(没有可用盲审回答)'}
@@ -50,6 +57,23 @@ ${responses || '(没有可用盲审回答)'}
 }
 \`\`\`
 `.trim();
+}
+
+function formatEvidenceResults(results: EvidenceFetchResult[]): string {
+  if (results.length === 0) return '(没有已抓取证据；链接本身不能当作事实证明)';
+  return results
+    .map(result => {
+      const head = `- ${result.url}: ${result.status}${result.statusCode ? ` HTTP ${result.statusCode}` : ''}`;
+      if (!result.ok) {
+        return `${head}; error=${result.error ?? 'unavailable'}`;
+      }
+      const title = result.title ? `title=${result.title}` : 'title=(none)';
+      const preview = result.preview
+        ? result.preview.replace(/\s+/g, ' ').slice(0, 700)
+        : '(empty preview)';
+      return `${head}; ${title}; contentType=${result.contentType ?? 'unknown'}\n  preview: ${preview}`;
+    })
+    .join('\n');
 }
 
 export function parseUserClaimAssessmentResponse(

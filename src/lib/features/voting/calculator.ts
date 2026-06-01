@@ -9,6 +9,7 @@ export interface VotingCalcOptions {
   options: string[];                // 候选 modelId 列表
   models: Map<string, ModelConfig>; // modelId → ModelConfig（取 weight 用）
   config: AdversarialConfig['voting'];
+  voteWeights?: Record<string, number>;
 }
 
 export function calculateVotingResult(opts: VotingCalcOptions): VotingResult {
@@ -19,7 +20,13 @@ export function calculateVotingResult(opts: VotingCalcOptions): VotingResult {
 
   votes.forEach(v => {
     if (totals[v.choice] === undefined) return;
-    const weight = config.mode === 'majority' ? 1 : models.get(v.voterId)?.weight ?? 1.0;
+    const adjustedWeight = opts.voteWeights?.[v.voterId];
+    const weight =
+      adjustedWeight !== undefined
+        ? adjustedWeight
+        : config.mode === 'majority'
+          ? 1
+          : models.get(v.voterId)?.weight ?? 1.0;
     totals[v.choice] += weight;
   });
 

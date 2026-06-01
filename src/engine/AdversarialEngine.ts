@@ -28,6 +28,8 @@ import {
   AuditMetrics,
   UserClaim,
   UserClaimAssessment,
+  EvidenceFetchResult,
+  UserOpinionInput,
   UserOpinionResult,
 } from '@/lib/types';
 import { streamModel, callModelNonStream } from '@/engine/ModelClient';
@@ -67,6 +69,7 @@ import {
   formatUserOpinionResult,
   generateUserClaimReviewPrompt,
   parseUserClaimAssessmentResponse,
+  verifyEvidenceUrls,
 } from '@/lib/features/user-opinion';
 
 export interface AdversarialEngineOptions {
@@ -607,7 +610,8 @@ export class AdversarialEngine extends EventEmitter {
     });
     const userOpinionNote = this.snapshot.userOpinion
       ? '\n\n【用户意见评审结果（用户意见没有投票权，仅作为已审计 claim 参考）】\n' +
-        formatUserOpinionResult(this.snapshot.userOpinion)
+        formatUserOpinionResult(this.snapshot.userOpinion) +
+        '\n\n若某模型存在无证据附和用户意见的风险，本轮投票权重会被下调；不要把用户立场当作投票依据。'
       : '';
     const prompt = basePrompt + concessionNote + userOpinionNote;
 
@@ -650,11 +654,13 @@ export class AdversarialEngine extends EventEmitter {
     });
 
     const votes = (await Promise.all(tasks)).filter((v): v is Vote => v !== null);
+    const voteWeights = this.buildVoteWeights();
     const result = calculateVotingResult({
       votes,
       options: candidateIds,
       models: this.modelMap,
       config: this.options.adversarialConfig.voting,
+      voteWeights,
     });
     this.emitEvent('voting-result', { result });
     return result;
@@ -676,19 +682,23 @@ export class AdversarialEngine extends EventEmitter {
     }
 
     const claims = extractUserClaims(opinion);
-    const assessments = await this.assessUserClaims(claims, blindResponses);
+    const evidenceResults = await this.verifyUserOpinionEvidence(claims, opinion);
+    const assessments = await this.assessUserClaims(claims, blindResponses, evidenceResults);
     return buildUserOpinionResult({
       opinion,
       claims,
       assessments,
       blindResponses,
       finalResponses,
+      evidenceResults,
+      challenges: this.snapshot.challenges,
     });
   }
 
   private async assessUserClaims(
     claims: UserClaim[],
-    blindResponses: ModelResponse[]
+    blindResponses: ModelResponse[],
+    evidenceResults: EvidenceFetchResult[]
   ): Promise<UserClaimAssessment[]> {
     if (claims.length === 0) return [];
     const voters = this.options.models.filter(m => {
@@ -702,6 +712,7 @@ export class AdversarialEngine extends EventEmitter {
         question: this.options.request.question,
         claim,
         blindResponses,
+        evidenceResults,
       });
       for (const model of voters) {
         tasks.push(
@@ -741,6 +752,46 @@ export class AdversarialEngine extends EventEmitter {
     }
 
     return (await Promise.all(tasks)).filter((a): a is UserClaimAssessment => a !== null);
+  }
+
+  private async verifyUserOpinionEvidence(
+    claims: UserClaim[],
+    opinion: UserOpinionInput
+  ): Promise<EvidenceFetchResult[]> {
+    const urls = [
+      ...(opinion.evidenceUrls ?? []),
+      ...claims.flatMap(claim => claim.evidenceUrls),
+    ];
+    const uniqueUrls = [...new Set(urls.map(u => u.trim()).filter(Boolean))];
+    if (uniqueUrls.length === 0) return [];
+    const cfg = this.options.adversarialConfig.tools.fetchUrl;
+    if (!cfg.enabled) {
+      return uniqueUrls.map(url => ({
+        url,
+        status: 'skipped',
+        ok: false,
+        error: 'fetch_url disabled in config',
+      }));
+    }
+    return verifyEvidenceUrls(uniqueUrls, {
+      maxBytes: cfg.maxBytes,
+      timeoutMs: cfg.timeoutMs,
+    });
+  }
+
+  private buildVoteWeights(): Record<string, number> | undefined {
+    const scores = this.snapshot.userOpinion?.modelSycophancyScores ?? [];
+    if (scores.length === 0) return undefined;
+    const weights: Record<string, number> = {};
+    for (const model of this.modelMap.values()) {
+      const score = scores.find(s => s.modelId === model.id);
+      const base =
+        this.options.adversarialConfig.voting.mode === 'majority'
+          ? 1
+          : model.weight ?? 1.0;
+      weights[model.id] = Number((base * (score?.penaltyMultiplier ?? 1)).toFixed(4));
+    }
+    return weights;
   }
 
   private computeAuditMetrics(

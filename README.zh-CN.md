@@ -97,6 +97,18 @@
 - **当前日期注入**：每个 prompt 自动带 system 消息告知"今天是 X 年 X 月 X 日"，避免模型把训练截止时间当成"现在"
 - **求真 > 收敛**：投票若不达共识，输出"需人工审查"而非强造 winner
 
+### 用户意见参与对抗
+- 用户意见会被拆成可验证 claim，不会被当成投票权或事实来源
+- 用户提供的证据链接会被抓取、摘要，并进入 claim review prompt
+- 输出包含采纳 / 反驳 / 部分采纳 / 证据不足、证据状态、采纳矩阵和精简证据图
+- 反附和评分会下调“盲审阶段没有依据、看到用户意见后无证据支持”的模型本轮投票权重
+
+### 结构化裁决与预测模型
+- 通用概率预测框架：base rate、加权 signal、不确定性区间、Brier Score、Log Loss
+- 世界杯冠军概率 MVP：rating / 近期状态 / 阵容健康 / 赛程路径 + 确定性种子模拟
+- 美国总统竞选 MVP：提名概率 × 大选胜率，支持州级 Electoral College signal
+- 标准冲突裁决：适用范围、上位/下位、强制/推荐、专门/通用、生效日期、替代和过渡期
+
 ### 可观察性
 - **TUI**（基于 ink）实时显示：
   - 每个模型的流式输出 + token 计数
@@ -161,6 +173,11 @@ aap config add deepseek-v3 \
 aap config discover --base-url https://api.example.com/v1 --protocol openai --api-key sk-...
 ```
 
+服务商配置注意：
+- OpenAI-compatible 第三方平台通常使用 `--protocol openai`，base URL 以 `/v1` 结尾。
+- Anthropic 原生协议没有公开 model-list 接口；需要手动指定 `--model`。
+- API key 只放在本机 `~/.aap/config.json`，不要发到 issue、PR、日志或聊天记录。
+
 ### 3. （可选）启用工具求真模式
 
 ```bash
@@ -175,6 +192,8 @@ aap tools list
 
 # 编辑 ~/.aap/config.json，把 adversarial.tools.enabled 改 true
 ```
+
+AAP server、搜索服务、模型平台是三类地址：AAP 默认 `127.0.0.1:28788`；SearXNG 常用 `127.0.0.1:28080`；模型服务商是各自的 `/v1` endpoint。
 
 ### 4. 启动
 
@@ -221,11 +240,13 @@ curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "adversarial:vote",
-    "messages": [{"role":"user","content":"用一句话解释熵"}]
+    "messages": [{"role":"user","content":"用一句话解释熵"}],
+    "user_opinion": "答案应该提到微观状态。",
+    "user_evidence": ["https://example.com/evidence"]
   }'
 ```
 
-响应是标准 OpenAI Chat Completion 格式，多了一个 `x_adversarial` 扩展字段（含 responses / challenges / voting / 工具调用日志）。
+响应是标准 OpenAI Chat Completion 格式，多了一个 `x_adversarial` 扩展字段（含 responses / challenges / voting / 用户意见裁决 / 证据抓取结果 / 采纳矩阵 / 工具调用日志）。
 
 流式：加 `"stream": true`，按标准 OpenAI SSE 输出，每个模型用 `## modelId` markdown header 分隔；最后一个 chunk 携带 `x_adversarial`，再发 `data: [DONE]`。
 

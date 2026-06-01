@@ -46,7 +46,10 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 | :--- | :--- | :--- |
 | **voting** | Multi-model consensus with majority / weighted / consensus / unanimous modes. | `calculator.ts`, `prompt.ts` |
 | **auto-challenge** | Each model audits others' outputs; parser extracts typed challenges. | `prompt.ts`, `parser.ts` |
-| **user-opinion** | Treats user opinion as verifiable claims, not votes. Models review claims after the blind first pass; aggregation reports adopted / rejected / partial / unresolved claims and sycophancy signals. | `parser.ts`, `prompt.ts`, `aggregator.ts`, `format.ts` |
+| **user-opinion** | Treats user opinion as verifiable claims, not votes. Models review claims after the blind first pass; aggregation reports verdicts, evidence fetch results, adoption matrix, evidence graph, and anti-sycophancy vote penalties. | `parser.ts`, `prompt.ts`, `aggregator.ts`, `evidence.ts`, `graph.ts`, `format.ts` |
+| **forecasting** | Deterministic structured probability models for forecast rankings. LLM text can be a capped qualitative signal, not a direct probability source. | `framework.ts`, `world-cup.ts`, `us-election.ts` |
+| **standards** | Clause-level standards conflict adjudication by scope, authority, mandatory/recommended wording, specificity, effective date, replacement, and transition period. | `adjudicator.ts` |
+| **eval** | Offline benchmark helpers for user-opinion truthfulness, sycophancy, review precision, and evidence coverage. | `user-opinion-benchmark.ts` |
 | **audit-metrics** | Reliability scoring (A+ ~ D), persisted to `~/.aap/audit-metrics.json`. | `calculator.ts`, `storage.ts` |
 | **thinking-visualization** | Extracts `<thinking>...</thinking>` blocks from model output. | `parser.ts` |
 
@@ -88,9 +91,10 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 2. Route parses `model` → `modelIds` + `mode`.
 3. Optional `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` is normalized into `RunRequest.userOpinion`.
 4. Calls `hub.startRun({ question, modelIds, source: 'http-openai', mode, userOpinion? })`.
-5. SSE handler subscribes to that `runId`'s events, translates them into OpenAI chunks.
-6. Final chunk includes `x_adversarial` metadata; closes with `data: [DONE]`.
-7. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
+5. User evidence URLs are verified during the user-opinion phase and included in claim review prompts.
+6. SSE handler subscribes to that `runId`'s events, translates them into OpenAI chunks.
+7. Final chunk includes `x_adversarial` metadata; closes with `data: [DONE]`.
+8. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
 
 ## 4. Configuration
 

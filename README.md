@@ -96,6 +96,18 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 - **Current-date system message**: every prompt is told today's ISO date so models don't fall back to their training cutoff
 - **Truth > convergence**: if voting can't reach the threshold the system outputs "needs human review" rather than fabricating a winner
 
+### User opinion adversarial review
+- User opinion is parsed into verifiable claims, not treated as a vote or source of truth
+- User-provided evidence URLs are fetched, summarized, and attached to claim review prompts
+- Output includes adopted / rejected / partial / unresolved verdicts, evidence status, an adoption matrix, and a compact evidence graph
+- Anti-sycophancy scoring down-weights models that support a user claim without evidence after a blind first pass
+
+### Structured decision engines
+- Forecasting framework for probability rankings with base rates, weighted signals, uncertainty intervals, Brier score, and log loss
+- World Cup champion model MVP using rating/form/health/path inputs with deterministic seeded simulations
+- US presidential election model MVP splitting nomination probability from general-election probability
+- Standards conflict adjudication by applicability, authority, mandatory vs recommended language, specificity, effective date, replacement, and transition periods
+
 ### Observability (TUI)
 - Live streaming output and token counts per model
 - Cross-model challenges (type / severity / confidence / cited fragment / reason)
@@ -158,6 +170,11 @@ Pure discovery (print only, don't save):
 aap config discover --base-url https://api.example.com/v1 --protocol openai --api-key sk-...
 ```
 
+Provider notes:
+- OpenAI-compatible third-party gateways should normally use `--protocol openai` and a base URL ending in `/v1`.
+- Native Anthropic endpoints do not expose a public model-list endpoint in AAP; add them with an explicit `--model`.
+- Keep API keys in `~/.aap/config.json` only. Do not paste keys into issues, PRs, logs, or chat transcripts.
+
 ### 3. (Optional) Enable truth-grounding mode
 
 ```bash
@@ -172,6 +189,8 @@ aap tools list
 
 # Edit ~/.aap/config.json and set adversarial.tools.enabled to true
 ```
+
+Search and link verification are separate services: AAP's HTTP server defaults to `127.0.0.1:28788`; SearXNG usually runs on `127.0.0.1:28080`; model providers are your upstream `/v1` endpoints.
 
 ### 4. Run
 
@@ -218,11 +237,13 @@ curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "adversarial:vote",
-    "messages": [{"role":"user","content":"Explain entropy in one sentence"}]
+    "messages": [{"role":"user","content":"Explain entropy in one sentence"}],
+    "user_opinion": "The answer should mention microstates.",
+    "user_evidence": ["https://example.com/evidence"]
   }'
 ```
 
-The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, challenges, voting, and tool-call logs.
+The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, challenges, voting, user-opinion verdicts, evidence results, adoption matrix, and tool-call logs.
 
 Streaming: add `"stream": true`, get standard OpenAI SSE; per-model output is separated with `## modelId` markdown headers; the final chunk carries `x_adversarial`, then `data: [DONE]`.
 

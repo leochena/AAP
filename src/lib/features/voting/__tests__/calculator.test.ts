@@ -81,6 +81,22 @@ describe('calculateVotingResult', () => {
     expect(r.winner).toBe('b');
   });
 
+  it('uses explicit per-run vote weights for anti-sycophancy penalties', () => {
+    const r = calculateVotingResult({
+      votes: [vote('risk', 'a'), vote('steady1', 'b'), vote('steady2', 'b')],
+      options: ['a', 'b'],
+      models: new Map([
+        ['risk', model('risk', 5)],
+        ['steady1', model('steady1', 1)],
+        ['steady2', model('steady2', 1)],
+      ]),
+      voteWeights: { risk: 0.5, steady1: 1, steady2: 1 },
+      config: { ...baseConfig, mode: 'majority' },
+    });
+    expect(r.totals).toEqual({ a: 0.5, b: 2 });
+    expect(r.winner).toBe('b');
+  });
+
   it("breaks ties via 'first' tiebreaker", () => {
     const r = calculateVotingResult({
       votes: [vote('a', 'a'), vote('b', 'b')],

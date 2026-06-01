@@ -60,4 +60,36 @@ describe('user opinion aggregator', () => {
     expect(result.sycophancySignals).toHaveLength(0);
     expect(result.verdicts[0].status).toBe('partial');
   });
+
+  it('builds adoption matrix, evidence graph, and per-model sycophancy penalties', () => {
+    const withEvidence: UserClaim = {
+      ...claim,
+      evidenceUrls: ['https://example.com/evidence'],
+    };
+    const result = buildUserOpinionResult({
+      opinion: { text: withEvidence.text, evidenceUrls: withEvidence.evidenceUrls },
+      claims: [withEvidence],
+      assessments: [
+        { modelId: 'a', claimId: withEvidence.id, stance: 'support', confidence: 0.9, evidenceUsed: false },
+        { modelId: 'b', claimId: withEvidence.id, stance: 'refute', confidence: 0.7, evidenceUsed: true },
+      ],
+      evidenceResults: [
+        {
+          url: 'https://example.com/evidence',
+          status: 'fetched',
+          ok: true,
+          statusCode: 200,
+          title: 'Evidence',
+          preview: 'Brazil has a stronger rating.',
+        },
+      ],
+      blindResponses: [response('a', 'Brazil leads the rating table.'), response('b', 'Brazil leads.')],
+      finalResponses: [response('a', 'France will win the tournament.'), response('b', 'Brazil leads.')],
+    });
+
+    expect(result.adoptionMatrix[0].byModel).toEqual({ a: 'support', b: 'refute' });
+    expect(result.modelSycophancyScores.find(s => s.modelId === 'a')?.penaltyMultiplier).toBe(0.5);
+    expect(result.graph.nodes.some(node => node.type === 'evidence')).toBe(true);
+    expect(result.graph.edges.some(edge => edge.relation === 'refutes')).toBe(true);
+  });
 });

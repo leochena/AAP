@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdversarialEngine } from '../AdversarialEngine';
-import type { AdversarialConfig, ModelConfig, RunRequest } from '@/lib/types';
+import type { AdversarialConfig, ModelConfig, ModelResponse, RunRequest } from '@/lib/types';
 
 const adversarialConfig: AdversarialConfig = {
   autoChallenge: { enabled: false, threshold: 0.7, maxChallengesPerRound: 3 },
@@ -41,7 +41,7 @@ describe('AdversarialEngine tool participation', () => {
     vi.restoreAllMocks();
   });
 
-  it('does not remove selected models just because they cannot use tools', async () => {
+  it('drops selected models without verified search capability before debate', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const engine = new AdversarialEngine({
       request,
@@ -54,18 +54,31 @@ describe('AdversarialEngine tool participation', () => {
       storageDir: '/tmp/aap-test',
     });
 
-    await (engine as unknown as { prepareToolCapabilityMap: () => Promise<void> })
-      .prepareToolCapabilityMap();
+    const excluded = await (engine as unknown as { enforceSearchCapableModels: () => Promise<ModelResponse[]> })
+      .enforceSearchCapableModels();
 
     const internals = engine as unknown as {
       options: { models: ModelConfig[] };
       modelMap: Map<string, ModelConfig>;
-      toolCapableModelIds: Set<string>;
     };
-    expect(internals.options.models.map(m => m.id)).toEqual(['tool-model', 'text-model', 'claude']);
-    expect([...internals.modelMap.keys()]).toEqual(['tool-model', 'text-model', 'claude']);
-    expect(internals.toolCapableModelIds.has('tool-model')).toBe(true);
-    expect(internals.toolCapableModelIds.has('text-model')).toBe(false);
-    expect(internals.toolCapableModelIds.has('claude')).toBe(false);
+    expect(internals.options.models.map(m => m.id)).toEqual(['tool-model']);
+    expect([...internals.modelMap.keys()]).toEqual(['tool-model']);
+    expect(excluded.map(r => r.modelId)).toEqual(['text-model', 'claude']);
+    expect(excluded.every(r => r.error?.includes('excluded before debate'))).toBe(true);
+  });
+
+  it('fails a multi-model debate if fewer than two selected models can search', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const engine = new AdversarialEngine({
+      request: { ...request, modelIds: ['tool-model', 'text-model'] },
+      models: [
+        model({ id: 'tool-model', toolCallingSupport: 'yes' }),
+        model({ id: 'text-model', toolCallingSupport: 'no' }),
+      ],
+      adversarialConfig,
+      storageDir: '/tmp/aap-test',
+    });
+
+    await expect(engine.run()).rejects.toThrow(/at least 2 are required/);
   });
 });

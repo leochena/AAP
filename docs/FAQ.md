@@ -28,7 +28,7 @@ AAP does not hard-code provider rankings. Each run writes lightweight model-prof
 
 ## Why probe tool-calling capability?
 
-Many OpenAI-compatible gateways list models that do not actually support function/tool calling. AAP probes capability before tool-grounded runs and caches the result for 24 hours. Unsupported models still participate in the run through the text-only path; they are not removed just because they cannot call tools.
+Many OpenAI-compatible gateways list models that do not actually support function/tool calling. AAP probes capability before tool-grounded runs and caches the result for 24 hours. In tool-grounded adversarial runs, unsupported models are dropped before debate because they cannot use AAP's search evidence path.
 
 ## Can I use local models?
 

@@ -97,7 +97,6 @@ export class AdversarialEngine extends EventEmitter {
   private readonly options: AdversarialEngineOptions;
   private toolsActive: boolean;
   private readonly toolRegistry?: ToolRegistry;
-  private readonly toolCapableModelIds = new Set<string>();
   private readonly concessions: ConcessionTracker;
 
   constructor(options: AdversarialEngineOptions) {
@@ -156,23 +155,24 @@ export class AdversarialEngine extends EventEmitter {
     return reg;
   }
 
-  private async prepareToolCapabilityMap(): Promise<void> {
+  private async enforceSearchCapableModels(): Promise<ModelResponse[]> {
     const cfg = this.options.adversarialConfig.tools;
     const ttl = cfg.capabilityCacheHours;
     const storage = this.options.storageDir;
-    const textOnly: { id: string; reason: string }[] = [];
+    const keep: ModelConfig[] = [];
+    const dropped: { model: ModelConfig; reason: string }[] = [];
 
     for (const model of this.options.models) {
       if (model.protocol !== 'openai') {
-        textOnly.push({ id: model.id, reason: `protocol ${model.protocol} uses text-only path` });
+        dropped.push({ model, reason: `protocol ${model.protocol} does not use AAP search tools` });
         continue;
       }
       if (model.toolCallingSupport === 'yes') {
-        this.toolCapableModelIds.add(model.id);
+        keep.push(model);
         continue;
       }
       if (model.toolCallingSupport === 'no') {
-        textOnly.push({ id: model.id, reason: 'config: toolCallingSupport=no' });
+        dropped.push({ model, reason: 'config: toolCallingSupport=no' });
         continue;
       }
       // 走缓存或现场探测
@@ -183,27 +183,33 @@ export class AdversarialEngine extends EventEmitter {
         cached = result;
       }
       if (cached.supported) {
-        this.toolCapableModelIds.add(model.id);
+        keep.push(model);
       } else {
-        textOnly.push({ id: model.id, reason: cached.reason });
+        dropped.push({ model, reason: cached.reason });
       }
     }
 
-    if (textOnly.length > 0) {
+    const droppedResponses = dropped.map(({ model, reason }) => ({
+      modelId: model.id,
+      content: '',
+      tokensIn: 0,
+      tokensOut: 0,
+      durationMs: 0,
+      error: `excluded before debate: no verified AAP search/tool-calling capability (${reason})`,
+    } satisfies ModelResponse));
+
+    if (dropped.length > 0) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[run ${this.runId}] tools enabled — ${textOnly.length} model(s) will answer text-only: ` +
-          textOnly.map(d => `${d.id} (${d.reason})`).join('; ')
+        `[run ${this.runId}] tools enabled — dropped ${dropped.length} model(s) before debate without verified search capability: ` +
+          dropped.map(d => `${d.model.id} (${d.reason})`).join('; ')
       );
     }
 
-    if (this.toolCapableModelIds.size === 0) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[run ${this.runId}] no selected model supports tool-calling; falling back to text-only mode`
-      );
-      this.toolsActive = false;
-    }
+    (this.options as { models: ModelConfig[] }).models = keep;
+    this.modelMap.clear();
+    for (const model of keep) this.modelMap.set(model.id, model);
+    return droppedResponses;
   }
 
   private emitEvent(type: EngineEventType, data: unknown) {
@@ -229,11 +235,25 @@ export class AdversarialEngine extends EventEmitter {
       this.snapshot.phase = 'pending';
       this.emitEvent('run-start', { request: this.options.request, models: this.options.models });
 
-      // ==== 工具能力探测 ====
-      // 启用 tools 时，只给支持 OpenAI tool-calling 的模型挂工具；
-      // 不支持工具的模型仍然必须参与盲答和投票，走 text-only 路径。
+      let excludedResponses: ModelResponse[] = [];
+
+      // ==== 搜索能力硬过滤 ====
+      // 启用 tools 时，进入生成/辩论前必须剔除不能调用 AAP search 工具的模型。
       if (this.toolsActive) {
-        await this.prepareToolCapabilityMap();
+        const selectedCount = this.options.models.length;
+        excludedResponses = await this.enforceSearchCapableModels();
+        for (const response of excludedResponses) {
+          this.snapshot.responses[response.modelId] = response;
+          this.emitEvent('model-complete', { response });
+        }
+        if (this.options.models.length === 0) {
+          throw new Error('No selected model has verified AAP search/tool-calling capability; debate aborted before generation.');
+        }
+        if (selectedCount >= 2 && this.options.models.length < 2) {
+          throw new Error(
+            `Only ${this.options.models.length} selected model has verified AAP search/tool-calling capability; at least 2 are required for adversarial debate.`
+          );
+        }
       }
 
       let responses: ModelResponse[] = [];
@@ -257,7 +277,9 @@ export class AdversarialEngine extends EventEmitter {
           blindResponses = responses;
         }
         // Snapshot reflects the latest round only.
-        this.snapshot.responses = {};
+        this.snapshot.responses = Object.fromEntries(
+          excludedResponses.map(response => [response.modelId, response])
+        );
         responses.forEach(r => {
           this.snapshot.responses[r.modelId] = r;
         });
@@ -301,7 +323,7 @@ export class AdversarialEngine extends EventEmitter {
       // ==== Audit Metrics ====
       const metrics = this.computeAuditMetrics(responses, this.snapshot.challenges);
       const protocolOutput = buildProtocolOutputContract({
-        responses,
+        responses: [...excludedResponses, ...responses],
         challenges: this.snapshot.challenges,
         voting,
         userOpinion,
@@ -314,7 +336,7 @@ export class AdversarialEngine extends EventEmitter {
 
       const result: RunResult = {
         runId: this.runId,
-        responses,
+        responses: [...excludedResponses, ...responses],
         challenges: this.snapshot.challenges,
         voting,
         userOpinion,
@@ -436,8 +458,7 @@ export class AdversarialEngine extends EventEmitter {
     const canUseTools = (model: ModelConfig) =>
       this.toolsActive &&
       this.toolRegistry !== undefined &&
-      model.protocol === 'openai' &&
-      this.toolCapableModelIds.has(model.id);
+      model.protocol === 'openai';
     const now = new Date();
 
     return Promise.all(

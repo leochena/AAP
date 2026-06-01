@@ -50,11 +50,17 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 
 | Feature | Responsibility | Key files |
 | :--- | :--- | :--- |
+| **claim-graph** | Generic evidence-adversarial graph primitive. Represents user claims, model claims, evidence, challenges, verdicts, support/refute/qualify/dependency/conflict edges, and evidence-chain traversal. | `graph.ts`, `user-opinion-adapter.ts` |
+| **adjudication** | Domain-agnostic claim adjudication by evidence stance, confidence, source reliability, recency, scope match, conflict gaps, and review thresholds. | `engine.ts` |
+| **output-contract** | Required protocol answer contract: conclusion, confidence, evidence chain, conflict points, user-claim decisions, sycophancy risks, and review triggers. Wired into `RunResult`, HTTP metadata, and non-stream/stream output. | `contract.ts` |
+| **model-profile** | Lightweight model-evolving profile scores and role suggestions from probe, benchmark, calibration, challenge, evidence-audit, and sycophancy events. | `types.ts`, `scoring.ts` |
+| **calibration-memory** | Lightweight calibration records and aggregation helpers. Stores metadata and later outcomes; it is not a local knowledge warehouse. | `types.ts`, `scoring.ts`, `store.ts` |
+| **protocol-benchmark** | Protocol-level metrics for comparing single-model, naive-vote, and AAP-style results. Tracks hallucination, sycophancy, evidence coverage, conflict resolution, abstention quality, and calibration error. | `metrics.ts`, `compare.ts` |
 | **voting** | Multi-model consensus with majority / weighted / consensus / unanimous modes. | `calculator.ts`, `prompt.ts` |
 | **auto-challenge** | Each model audits others' outputs; parser extracts typed challenges. | `prompt.ts`, `parser.ts` |
 | **user-opinion** | Treats user opinion as verifiable claims, not votes. Models review claims after the blind first pass; aggregation reports verdicts, evidence fetch results, adoption matrix, evidence graph, and anti-sycophancy vote penalties. | `parser.ts`, `prompt.ts`, `aggregator.ts`, `evidence.ts`, `graph.ts`, `format.ts` |
-| **forecasting** | Deterministic structured probability models for forecast rankings. LLM text can be a capped qualitative signal, not a direct probability source. | `framework.ts`, `world-cup.ts`, `us-election.ts` |
-| **standards** | Clause-level standards conflict adjudication by scope, authority, mandatory/recommended wording, specificity, effective date, replacement, and transition period. | `adjudicator.ts` |
+| **forecasting** | Example/benchmark probability models. Keep domain logic here or in plugins; do not let sports/election examples become the core product. | `framework.ts`, `world-cup.ts`, `us-election.ts` |
+| **standards** | Example clause-level adjudication for standard conflicts. Generalizable rules belong in **adjudication**; domain-specific metadata stays here or in plugins. | `adjudicator.ts` |
 | **eval** | Offline benchmark helpers for user-opinion truthfulness, sycophancy, review precision, and evidence coverage. | `user-opinion-benchmark.ts` |
 | **audit-metrics** | Reliability scoring (A+ ~ D), persisted to `~/.aap/audit-metrics.json`. | `calculator.ts`, `storage.ts` |
 | **thinking-visualization** | Extracts `<thinking>...</thinking>` blocks from model output. | `parser.ts` |

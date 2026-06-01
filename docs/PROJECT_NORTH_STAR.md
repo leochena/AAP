@@ -21,12 +21,14 @@ Use the strongest available models as replaceable reasoning engines, but require
 Core runtime work must improve at least one protocol primitive:
 
 - Claim extraction and normalization.
-- Evidence-adversarial graph construction.
+- Evidence-adversarial graph construction (`src/lib/features/claim-graph`).
 - Evidence quality, source reliability, and traceability.
-- Anti-sycophancy detection and scoring.
-- Dynamic model profiling, role assignment, and vote weighting.
-- Calibration memory based on later outcomes and benchmark results.
-- Generic adjudication rules for conflicts, uncertainty, and review thresholds.
+- Anti-sycophancy detection and scoring (`src/lib/features/user-opinion` and protocol output).
+- Dynamic model profiling, role assignment, and vote weighting (`src/lib/features/model-profile`).
+- Calibration memory based on later outcomes and benchmark results (`src/lib/features/calibration-memory`).
+- Generic adjudication rules for conflicts, uncertainty, and review thresholds (`src/lib/features/adjudication`).
+- Required final answer contract (`src/lib/features/output-contract`).
+- Protocol-level benchmark comparison (`src/lib/features/protocol-benchmark`).
 - Plugin interfaces for search, data APIs, document parsers, and benchmarks.
 
 ## What Does Not Count As Core

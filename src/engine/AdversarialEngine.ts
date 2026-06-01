@@ -63,6 +63,7 @@ import {
   getMetrics,
   updateMetrics,
 } from '@/lib/features/audit-metrics';
+import { buildProtocolOutputContract } from '@/lib/features/output-contract';
 import {
   buildUserOpinionResult,
   extractUserClaims,
@@ -290,6 +291,13 @@ export class AdversarialEngine extends EventEmitter {
 
       // ==== Audit Metrics ====
       const metrics = this.computeAuditMetrics(responses, this.snapshot.challenges);
+      const protocolOutput = buildProtocolOutputContract({
+        responses,
+        challenges: this.snapshot.challenges,
+        voting,
+        userOpinion,
+      });
+      this.snapshot.protocolOutput = protocolOutput;
 
       this.snapshot.phase = 'complete';
       this.snapshot.finishedAt = Date.now();
@@ -301,6 +309,7 @@ export class AdversarialEngine extends EventEmitter {
         challenges: this.snapshot.challenges,
         voting,
         userOpinion,
+        protocolOutput,
         metrics,
         durationMs: Date.now() - start,
       };

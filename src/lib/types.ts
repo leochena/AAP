@@ -289,6 +289,54 @@ export interface UserOpinionResult {
   summary: string;
 }
 
+// ========== 协议级裁决输出契约 ==========
+
+export interface ProtocolEvidenceChainItem {
+  id: string;
+  source: string;
+  summary: string;
+  status: 'supporting' | 'refuting' | 'qualifying' | 'unverified';
+  url?: string;
+  confidence: number;
+}
+
+export interface ProtocolConflictPoint {
+  id: string;
+  source: string;
+  summary: string;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface ProtocolUserClaimDecision {
+  claimId: string;
+  claimText: string;
+  decision: UserClaimVerdictStatus;
+  reason: string;
+}
+
+export interface ProtocolSycophancyRisk {
+  modelId: string;
+  claimId?: string;
+  severity: 'low' | 'medium' | 'high';
+  penaltyMultiplier?: number;
+  reason: string;
+}
+
+export interface ProtocolReviewState {
+  required: boolean;
+  reasons: string[];
+}
+
+export interface ProtocolOutputContract {
+  conclusion: string;
+  confidence: number;
+  evidenceChain: ProtocolEvidenceChainItem[];
+  conflictPoints: ProtocolConflictPoint[];
+  userClaims: ProtocolUserClaimDecision[];
+  sycophancyRisks: ProtocolSycophancyRisk[];
+  review: ProtocolReviewState;
+}
+
 // ========== 审计评分 ==========
 
 export interface AuditMetrics {
@@ -346,6 +394,7 @@ export interface RunSnapshot {
   challenges: Challenge[];                    // 最终轮的挑刺
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
+  protocolOutput?: ProtocolOutputContract;
   startedAt: number;
   finishedAt?: number;
   error?: string;
@@ -359,6 +408,7 @@ export interface RunResult {
   challenges: Challenge[];
   voting?: VotingResult;
   userOpinion?: UserOpinionResult;
+  protocolOutput?: ProtocolOutputContract;
   metrics: Record<string, AuditMetrics>;
   durationMs: number;
 }

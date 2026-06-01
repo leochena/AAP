@@ -16,6 +16,7 @@ import { EngineHub } from '@/engine/EngineHub';
 import { Message, RunRequest, RunResult, UserOpinionInput } from '@/lib/types';
 import { buildOpenAIStream } from '@/server/sse';
 import { formatUserOpinionResult, normalizeUserOpinionInput } from '@/lib/features/user-opinion';
+import { formatProtocolOutputContract } from '@/lib/features/output-contract';
 
 interface ChatCompletionRequest {
   model: string;
@@ -231,6 +232,7 @@ function buildOpenAIFinalResponse(
     challenges: result.challenges,
     voting: result.voting,
     userOpinion: result.userOpinion,
+    protocolOutput: result.protocolOutput,
     metrics: result.metrics,
   };
   return base;
@@ -240,25 +242,26 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
   if (mode === 'passthrough') {
     return result.responses[0]?.content ?? '';
   }
+  let out = '';
   if (mode === 'vote' && result.voting?.winner) {
     const winnerResp = result.responses.find(r => r.modelId === result.voting!.winner);
     if (winnerResp) {
-      return (
+      out +=
         `# 投票获胜模型: ${winnerResp.modelId}\n` +
         `共识度: ${((result.voting!.consensusLevel) * 100).toFixed(1)}%\n\n` +
-        `${winnerResp.content}`
-      );
+        `${winnerResp.content}\n`;
     }
   }
 
-  // 默认 / debate / all：合并展示
-  let out = '';
-  for (const r of result.responses) {
-    out += `## ${r.modelId}\n\n`;
-    if (r.error) {
-      out += `[ERROR] ${r.error}\n\n`;
-    } else {
-      out += `${r.content}\n\n`;
+  if (!out) {
+    // 默认 / debate / all：合并展示
+    for (const r of result.responses) {
+      out += `## ${r.modelId}\n\n`;
+      if (r.error) {
+        out += `[ERROR] ${r.error}\n\n`;
+      } else {
+        out += `${r.content}\n\n`;
+      }
     }
   }
   if (result.challenges.length > 0) {
@@ -282,6 +285,10 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
     for (const [id, score] of Object.entries(result.voting.totals)) {
       out += `- ${id}: ${score.toFixed(2)}\n`;
     }
+  }
+  const protocolBlock = formatProtocolOutputContract(result.protocolOutput);
+  if (protocolBlock) {
+    out += `\n\n---\n\n${protocolBlock}\n`;
   }
   return out.trim();
 }

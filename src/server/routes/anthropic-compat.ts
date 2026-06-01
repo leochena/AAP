@@ -9,6 +9,7 @@ import { EngineHub } from '@/engine/EngineHub';
 import { Message, RunRequest, RunResult, UserOpinionInput } from '@/lib/types';
 import { buildAnthropicStream } from '@/server/sse';
 import { formatUserOpinionResult, normalizeUserOpinionInput } from '@/lib/features/user-opinion';
+import { formatProtocolOutputContract } from '@/lib/features/output-contract';
 
 interface AnthropicRequest {
   model: string;
@@ -159,6 +160,7 @@ export function createAnthropicRoutes(hub: EngineHub): Hono {
       challenges: result.challenges,
       voting: result.voting,
       userOpinion: result.userOpinion,
+      protocolOutput: result.protocolOutput,
       metrics: result.metrics,
     };
     return c.json(base);
@@ -210,20 +212,21 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
   if (mode === 'passthrough') {
     return result.responses[0]?.content ?? '';
   }
+  let out = '';
   if (mode === 'vote' && result.voting?.winner) {
     const winnerResp = result.responses.find(r => r.modelId === result.voting!.winner);
     if (winnerResp) {
-      return (
+      out +=
         `# 投票获胜模型: ${winnerResp.modelId}\n` +
         `共识度: ${(result.voting!.consensusLevel * 100).toFixed(1)}%\n\n` +
-        `${winnerResp.content}`
-      );
+        `${winnerResp.content}\n`;
     }
   }
-  let out = '';
-  for (const r of result.responses) {
-    out += `## ${r.modelId}\n\n`;
-    out += r.error ? `[ERROR] ${r.error}\n\n` : `${r.content}\n\n`;
+  if (!out) {
+    for (const r of result.responses) {
+      out += `## ${r.modelId}\n\n`;
+      out += r.error ? `[ERROR] ${r.error}\n\n` : `${r.content}\n\n`;
+    }
   }
   if (result.challenges.length > 0) {
     out += '\n---\n\n## 🔍 互相挑刺\n\n';
@@ -242,6 +245,10 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
     } else {
       out += '**结果:** 平局\n\n';
     }
+  }
+  const protocolBlock = formatProtocolOutputContract(result.protocolOutput);
+  if (protocolBlock) {
+    out += `\n\n---\n\n${protocolBlock}\n`;
   }
   return out.trim();
 }

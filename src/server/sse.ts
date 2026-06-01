@@ -10,6 +10,7 @@ import {
 } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
 import { formatUserOpinionResult } from '@/lib/features/user-opinion';
+import { formatProtocolOutputContract } from '@/lib/features/output-contract';
 
 const enc = new TextEncoder();
 
@@ -67,6 +68,11 @@ function formatVotingBlock(result: import('@/lib/types').VotingResult): string {
 
 function formatUserOpinionBlock(result?: import('@/lib/types').UserOpinionResult): string {
   const block = formatUserOpinionResult(result);
+  return block ? `${block}\n` : '';
+}
+
+function formatProtocolBlock(result?: import('@/lib/types').ProtocolOutputContract): string {
+  const block = formatProtocolOutputContract(result);
   return block ? `${block}\n` : '';
 }
 
@@ -177,6 +183,15 @@ export function buildOpenAIStream(
           );
         } else if (event.type === 'run-complete') {
           const { result } = event.data as RunCompleteEventData;
+          if (!passthrough) {
+            safeEnqueue(
+              ssePayload(
+                makeChunk(responseId, modelLabel, {
+                  content: `\n\n---\n\n${formatProtocolBlock(result.protocolOutput)}`,
+                })
+              )
+            );
+          }
           // 透传：标准 OpenAI finish chunk，不带 x_adversarial
           // 对抗模式：最后一个 chunk 含完整 adversarial 元数据
           const finalChunk: OpenAIChunk & { x_adversarial?: unknown } = passthrough
@@ -197,6 +212,7 @@ export function buildOpenAIStream(
                   challenges: result.challenges,
                   voting: result.voting,
                   userOpinion: result.userOpinion,
+                  protocolOutput: result.protocolOutput,
                   metrics: result.metrics,
                 },
               };
@@ -328,6 +344,7 @@ export function buildAnthropicStream(
           sendDelta(formatUserOpinionBlock(result));
         } else if (e.type === 'run-complete') {
           const { result } = e.data as RunCompleteEventData;
+          if (!passthrough) sendDelta(`\n\n---\n\n${formatProtocolBlock(result.protocolOutput)}`);
           safeEnqueue(eventFrame('content_block_stop', { type: 'content_block_stop', index: 0 }));
           safeEnqueue(
             eventFrame('message_delta', {

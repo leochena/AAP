@@ -16,7 +16,7 @@
 
 ## 用户意见能参与对抗吗？
 
-可以。HTTP API 支持 `user_opinion`、`user_evidence`、`x_adversarial.user_opinion`，TUI 也可以输入用户意见。AAP 会把文本拆成 claim，在 `fetch_url` 启用时抓取证据链接，让模型在盲审第一轮之后逐条评审，最终输出采纳 / 反驳 / 部分采纳 / 证据不足。用户意见不会直接获得投票权。
+可以。HTTP API 支持 `user_opinion`、`user_evidence`、`x_adversarial.user_opinion`。TUI 里先启动盲答 run，再在选中的 run 上按 `u` 追加用户意见/证据链接。AAP 会把文本拆成 claim，在 `fetch_url` 启用时抓取证据链接，让模型在盲审第一轮之后逐条评审，最终输出采纳 / 反驳 / 部分采纳 / 证据不足。用户意见不会直接获得投票权。
 
 ## 怎么避免模型附和用户？
 
@@ -28,7 +28,7 @@ AAP 不写死供应商排名。每次运行会把轻量模型画像事件写入 
 
 ## 为什么要探测 tool-calling 能力？
 
-很多 OpenAI-compatible 网关会列出模型，但其中一部分并不真正支持 function/tool calling。AAP 会在工具接地运行前探测能力，并缓存 24 小时。不支持工具调用的模型仍然可以用于非工具模式。
+很多 OpenAI-compatible 网关会列出模型，但其中一部分并不真正支持 function/tool calling。AAP 会在工具接地运行前探测能力，并缓存 24 小时。不支持工具调用的模型仍然会通过纯文本路径参与 run，不会因为不能调用工具就被移除。
 
 ## 能用本地模型吗？
 

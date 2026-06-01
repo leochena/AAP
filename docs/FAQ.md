@@ -16,7 +16,7 @@ Models can claim they "searched" or "checked" even when they did not call a tool
 
 ## Can user opinions participate in the debate?
 
-Yes. Pass `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` through the HTTP API, or enter it in the TUI. AAP parses the text into claims, fetches evidence URLs when `fetch_url` is enabled, asks models to review each claim after the blind first pass, and returns adopted / rejected / partial / unresolved verdicts. User opinion never receives direct voting power.
+Yes. Pass `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` through the HTTP API. In the TUI, start the blind run first, then press `u` on the selected run to add user opinion / evidence links. AAP parses the text into claims, fetches evidence URLs when `fetch_url` is enabled, asks models to review each claim after the blind first pass, and returns adopted / rejected / partial / unresolved verdicts. User opinion never receives direct voting power.
 
 ## How does AAP avoid flattering the user?
 
@@ -28,7 +28,7 @@ AAP does not hard-code provider rankings. Each run writes lightweight model-prof
 
 ## Why probe tool-calling capability?
 
-Many OpenAI-compatible gateways list models that do not actually support function/tool calling. AAP probes capability before tool-grounded runs and caches the result for 24 hours. Unsupported models can still be used in non-tool mode.
+Many OpenAI-compatible gateways list models that do not actually support function/tool calling. AAP probes capability before tool-grounded runs and caches the result for 24 hours. Unsupported models still participate in the run through the text-only path; they are not removed just because they cannot call tools.
 
 ## Can I use local models?
 

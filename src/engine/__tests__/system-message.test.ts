@@ -87,4 +87,17 @@ describe('AdversarialEngine.buildSystemMessage', () => {
     // 反伪证据原则
     expect(msg.content).toMatch(/不要编造|不要假设/);
   });
+
+  it('can suppress tool guidance for text-only models in a mixed run', () => {
+    const engine = new AdversarialEngine({
+      request: baseRequest,
+      models: [model],
+      adversarialConfig: { ...adversarialConfig, tools: { ...adversarialConfig.tools, enabled: true } },
+      storageDir: '/tmp/aap-test',
+    });
+    const msg = (engine as unknown as { buildSystemMessage: (d?: Date, toolsAvailable?: boolean) => { content: string } })
+      .buildSystemMessage(new Date('2026-05-02T12:34:56Z'), false);
+    expect(msg.content).not.toContain('search(query)');
+    expect(msg.content).not.toContain('concede');
+  });
 });

@@ -23,8 +23,13 @@ export function RunDetailView({ run, width, rows }: Props) {
     );
   }
 
-  const modelIds = Object.keys(run.modelOutputs);
-  const visibleIds = modelIds.length > 0 ? modelIds : [];
+  const visibleIds = run.modelIds.length > 0
+    ? run.modelIds
+    : [...new Set([
+        ...Object.keys(run.modelOutputs),
+        ...Object.keys(run.modelErrors),
+        ...Object.keys(run.modelDone),
+      ])];
   // Reserve roughly 14 rows for header, run list, phase indicator, challenges,
   // votes, footer. Anything beyond that goes to per-model output, with a sane
   // floor so panels remain useful even on small terminals.

@@ -7,6 +7,7 @@ import { RunDetailView } from '@/tui/components/RunDetailView';
 import { InputModal } from '@/tui/components/InputModal';
 import { DiscoverModal } from '@/tui/components/DiscoverModal';
 import { PreflightWarning } from '@/tui/components/PreflightWarning';
+import { UserOpinionModal } from '@/tui/components/UserOpinionModal';
 import { ModelConfig } from '@/lib/types';
 import { preflightCheck, PreflightResult } from '@/engine/preflight';
 
@@ -19,6 +20,7 @@ type Overlay =
   | { kind: 'none' }
   | { kind: 'input' }
   | { kind: 'discover' }
+  | { kind: 'user-opinion'; question: string; modelIds: string[] }
   | {
       kind: 'preflighting';
       question: string;
@@ -63,6 +65,13 @@ export function App({ hub, serverUrl }: Props) {
     }
     if (input === 'a') {
       setOverlay({ kind: 'discover' });
+      return;
+    }
+    if (input === 'u' && selectedRun) {
+      const modelIds = selectedRun.modelIds.length > 0
+        ? selectedRun.modelIds
+        : config.models.filter(m => m.enabled).map(m => m.id);
+      setOverlay({ kind: 'user-opinion', question: selectedRun.question, modelIds });
       return;
     }
     if (key.upArrow) {
@@ -153,7 +162,7 @@ export function App({ hub, serverUrl }: Props) {
 
       <Box marginTop={1} paddingX={1}>
         <Text dimColor>
-          [↑↓] 切换 run · [n] 新问题 · [a] 添加模型 · [q] 退出
+          [↑↓] 切换 run · [n] 新问题 · [u] 追加用户意见 · [a] 添加模型 · [q] 退出
         </Text>
       </Box>
 
@@ -172,6 +181,21 @@ export function App({ hub, serverUrl }: Props) {
           <DiscoverModal
             existingIds={config.models.map(m => m.id)}
             onSubmit={handleDiscoverSubmit}
+            onCancel={() => setOverlay({ kind: 'none' })}
+          />
+        </Box>
+      )}
+
+      {overlay.kind === 'user-opinion' && (
+        <Box marginTop={1}>
+          <UserOpinionModal
+            question={overlay.question}
+            onSubmit={opinion => {
+              const question = overlay.question;
+              const modelIds = overlay.modelIds;
+              setOverlay({ kind: 'none' });
+              handleSubmitQuestion(question, modelIds, opinion);
+            }}
             onCancel={() => setOverlay({ kind: 'none' })}
           />
         </Box>

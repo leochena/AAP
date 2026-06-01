@@ -97,6 +97,7 @@ export class AdversarialEngine extends EventEmitter {
   private readonly options: AdversarialEngineOptions;
   private toolsActive: boolean;
   private readonly toolRegistry?: ToolRegistry;
+  private readonly toolCapableModelIds = new Set<string>();
   private readonly concessions: ConcessionTracker;
 
   constructor(options: AdversarialEngineOptions) {
@@ -155,20 +156,23 @@ export class AdversarialEngine extends EventEmitter {
     return reg;
   }
 
-  private async applyCapabilityFiltering(): Promise<void> {
+  private async prepareToolCapabilityMap(): Promise<void> {
     const cfg = this.options.adversarialConfig.tools;
     const ttl = cfg.capabilityCacheHours;
     const storage = this.options.storageDir;
-    const keep: ModelConfig[] = [];
-    const dropped: { id: string; reason: string }[] = [];
+    const textOnly: { id: string; reason: string }[] = [];
 
     for (const model of this.options.models) {
+      if (model.protocol !== 'openai') {
+        textOnly.push({ id: model.id, reason: `protocol ${model.protocol} uses text-only path` });
+        continue;
+      }
       if (model.toolCallingSupport === 'yes') {
-        keep.push(model);
+        this.toolCapableModelIds.add(model.id);
         continue;
       }
       if (model.toolCallingSupport === 'no') {
-        dropped.push({ id: model.id, reason: 'config: toolCallingSupport=no' });
+        textOnly.push({ id: model.id, reason: 'config: toolCallingSupport=no' });
         continue;
       }
       // 走缓存或现场探测
@@ -179,32 +183,27 @@ export class AdversarialEngine extends EventEmitter {
         cached = result;
       }
       if (cached.supported) {
-        keep.push(model);
+        this.toolCapableModelIds.add(model.id);
       } else {
-        dropped.push({ id: model.id, reason: cached.reason });
+        textOnly.push({ id: model.id, reason: cached.reason });
       }
     }
 
-    if (dropped.length > 0) {
+    if (textOnly.length > 0) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[run ${this.runId}] tools enabled — dropped ${dropped.length} model(s) without tool-calling support: ` +
-          dropped.map(d => `${d.id} (${d.reason})`).join('; ')
+        `[run ${this.runId}] tools enabled — ${textOnly.length} model(s) will answer text-only: ` +
+          textOnly.map(d => `${d.id} (${d.reason})`).join('; ')
       );
     }
 
-    if (keep.length < 2) {
+    if (this.toolCapableModelIds.size === 0) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[run ${this.runId}] only ${keep.length} model(s) support tool-calling; falling back to text-only mode`
+        `[run ${this.runId}] no selected model supports tool-calling; falling back to text-only mode`
       );
       this.toolsActive = false;
-      return;
     }
-
-    (this.options as { models: ModelConfig[] }).models = keep;
-    this.modelMap.clear();
-    for (const m of keep) this.modelMap.set(m.id, m);
   }
 
   private emitEvent(type: EngineEventType, data: unknown) {
@@ -230,10 +229,11 @@ export class AdversarialEngine extends EventEmitter {
       this.snapshot.phase = 'pending';
       this.emitEvent('run-start', { request: this.options.request, models: this.options.models });
 
-      // ==== 工具能力过滤 ====
-      // 启用 tools 时，剔除不支持 tool-calling 的模型；只剩 < 2 个则放弃工具模式。
+      // ==== 工具能力探测 ====
+      // 启用 tools 时，只给支持 OpenAI tool-calling 的模型挂工具；
+      // 不支持工具的模型仍然必须参与盲答和投票，走 text-only 路径。
       if (this.toolsActive) {
-        await this.applyCapabilityFiltering();
+        await this.prepareToolCapabilityMap();
       }
 
       let responses: ModelResponse[] = [];
@@ -401,13 +401,16 @@ export class AdversarialEngine extends EventEmitter {
    * as if "now" equals their training cutoff, and the search/exec tools
    * get under-used because the model wasn't told *when* to reach for them.
    */
-  private buildSystemMessage(now: Date = new Date()): Message {
+  private buildSystemMessage(
+    now: Date = new Date(),
+    toolsAvailable = this.toolsActive && this.toolRegistry !== undefined
+  ): Message {
     const isoDate = now.toISOString().slice(0, 10);
     const lines: string[] = [
       `当前日期：${isoDate}。`,
       '在回答涉及时间、最近事件、版本号、价格、人物近况等时效性内容时，请以此日期为准 —— 不要假设你的训练截止时间就是"现在"。',
     ];
-    if (this.toolsActive && this.toolRegistry) {
+    if (toolsAvailable) {
       lines.push(
         '',
         '你可以使用以下工具来获取外部证据：',
@@ -426,25 +429,33 @@ export class AdversarialEngine extends EventEmitter {
     prior?: { responses: ModelResponse[]; challenges: Challenge[] }
   ): Promise<ModelResponse[]> {
     const { request, models, signal } = this.options;
-    const baseMessages: Message[] = [
-      this.buildSystemMessage(),
+    const sharedMessages: Message[] = [
       ...(request.history ?? []),
       { role: 'user', content: request.question },
     ];
-    const messages: Message[] = prior
-      ? [
-          ...baseMessages,
-          {
-            role: 'user',
-            content: this.buildRefinementMessage(prior.responses, prior.challenges),
-          },
-        ]
-      : baseMessages;
-
-    const useTools = this.toolsActive && this.toolRegistry !== undefined;
+    const canUseTools = (model: ModelConfig) =>
+      this.toolsActive &&
+      this.toolRegistry !== undefined &&
+      model.protocol === 'openai' &&
+      this.toolCapableModelIds.has(model.id);
+    const now = new Date();
 
     return Promise.all(
       models.map(async model => {
+        const baseMessages: Message[] = [
+          this.buildSystemMessage(now, canUseTools(model)),
+          ...sharedMessages,
+        ];
+        const messages: Message[] = prior
+          ? [
+              ...baseMessages,
+              {
+                role: 'user',
+                content: this.buildRefinementMessage(prior.responses, prior.challenges),
+              },
+            ]
+          : baseMessages;
+
         // 已退出模型不参与新一轮
         if (this.concessions.isWithdrawn(model.id)) {
           return {
@@ -471,7 +482,7 @@ export class AdversarialEngine extends EventEmitter {
         };
 
         try {
-          if (useTools && model.protocol === 'openai') {
+          if (canUseTools(model)) {
             const result = await streamWithTools({
               model,
               messages,
@@ -740,7 +751,7 @@ export class AdversarialEngine extends EventEmitter {
         tasks.push(
           callModelNonStream(
             model,
-            [this.buildSystemMessage(), { role: 'user', content: prompt }],
+            [this.buildSystemMessage(new Date(), false), { role: 'user', content: prompt }],
             { signal: this.options.signal, maxTokens: 512 }
           )
             .then(result => {

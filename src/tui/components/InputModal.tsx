@@ -13,7 +13,7 @@ interface Props {
   onCancel: () => void;
 }
 
-type Stage = 'select-models' | 'enter-question' | 'enter-opinion';
+type Stage = 'select-models' | 'enter-question';
 
 export function InputModal({ models, onSubmit, onCancel }: Props) {
   const enabled = models.filter(m => m.enabled);
@@ -22,7 +22,6 @@ export function InputModal({ models, onSubmit, onCancel }: Props) {
   );
   const [stage, setStage] = useState<Stage>('select-models');
   const [question, setQuestion] = useState('');
-  const [opinion, setOpinion] = useState('');
   const [cursor, setCursor] = useState(0);
 
   useInput(
@@ -52,7 +51,7 @@ export function InputModal({ models, onSubmit, onCancel }: Props) {
           setStage('enter-question');
         }
       }
-      // enter-question / enter-opinion 阶段：return 由 TextInput 处理
+      // enter-question 阶段：return 由 TextInput 处理
     },
     { isActive: true }
   );
@@ -93,7 +92,7 @@ export function InputModal({ models, onSubmit, onCancel }: Props) {
   if (stage === 'enter-question') {
     return (
       <Box flexDirection="column" borderStyle="double" borderColor="blue" paddingX={1}>
-        <Text bold>输入问题 (Enter 继续、Esc 取消)</Text>
+        <Text bold>输入问题 (Enter 开始盲答、Esc 取消)</Text>
         <Box marginTop={1}>
           <Text>❯ </Text>
           <TextInput
@@ -102,39 +101,17 @@ export function InputModal({ models, onSubmit, onCancel }: Props) {
             onSubmit={value => {
               const trimmed = value.trim();
               if (!trimmed) return;
-              setQuestion(trimmed);
-              setStage('enter-opinion');
+              onSubmit(trimmed, [...selected]);
             }}
           />
         </Box>
         <Box marginTop={1}>
           <Text dimColor>参与模型: {[...selected].join(', ')}</Text>
         </Box>
+        <Box>
+          <Text dimColor>盲答完成后可按 [u] 给当前问题追加用户意见/证据链接。</Text>
+        </Box>
       </Box>
     );
   }
-
-  return (
-    <Box flexDirection="column" borderStyle="double" borderColor="blue" paddingX={1}>
-      <Text bold>用户意见/证据链接 (可留空，Enter 提交、Esc 取消)</Text>
-      <Box marginTop={1}>
-        <Text>❯ </Text>
-        <TextInput
-          value={opinion}
-          onChange={setOpinion}
-          onSubmit={value => {
-            const trimmed = value.trim();
-            onSubmit(
-              question,
-              [...selected],
-              trimmed ? { text: trimmed } : undefined
-            );
-          }}
-        />
-      </Box>
-      <Box marginTop={1}>
-        <Text dimColor>用户意见会作为待验证 claim 参与对抗，不会直接获得投票权。</Text>
-      </Box>
-    </Box>
-  );
 }

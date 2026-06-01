@@ -299,6 +299,8 @@ aap calibration add --model <id> --task-type <type> --probability <0-1> --outcom
 aap calibration summary          # 查看事后结果回填后的校准汇总
 ```
 
+TUI 中 `[n]` 会直接启动盲答 run。盲答出现后，在选中的 run 上按 `[u]` 追加用户意见或证据链接，把它们作为待验证 claim 参与审查。
+
 ---
 
 ## 📁 持久化

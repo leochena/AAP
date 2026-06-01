@@ -146,4 +146,43 @@ describe('streamWithTools', () => {
     expect(result.truncated).toBe(true);
     expect(result.toolCallsLog).toHaveLength(3);
   });
+
+  it('forces a final text answer after tool budget is exhausted', async () => {
+    let callCount = 0;
+    globalThis.fetch = vi.fn(async () => {
+      callCount++;
+      if (callCount <= 2) {
+        return streamResponse(sse([
+          { choices: [{ delta: { tool_calls: [{ index: 0, id: `c${callCount}`, type: 'function', function: { name: 'echo', arguments: '{}' } }] } }] },
+          { choices: [{ finish_reason: 'tool_calls' }] },
+        ]));
+      }
+      return streamResponse(sse([
+        { choices: [{ delta: { content: 'Final from gathered evidence' } }] },
+        { choices: [{ finish_reason: 'stop' }] },
+      ]));
+    }) as any;
+
+    const registry = new ToolRegistry();
+    registry.register(
+      { name: 'echo', description: 'echo', parameters: {} },
+      async () => ({ id: '', ok: true, content: 'tool-result' })
+    );
+
+    const result = await streamWithTools({
+      model,
+      messages: [{ role: 'user', content: 'q' }],
+      tools: [{ name: 'echo', description: 'echo', parameters: {} }],
+      registry,
+      ctx,
+      maxIterations: 2,
+    });
+
+    expect(callCount).toBe(3);
+    expect(result.truncated).toBe(true);
+    expect(result.content).toBe('Final from gathered evidence');
+    const finalBody = JSON.parse((globalThis.fetch as any).mock.calls[2][1].body);
+    expect(finalBody.tools).toBeUndefined();
+    expect(finalBody.messages.at(-1).content).toContain('工具调用预算已经用完');
+  });
 });

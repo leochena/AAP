@@ -296,6 +296,8 @@ aap calibration add --model <id> --task-type <type> --probability <0-1> --outcom
 aap calibration summary          # summarize later outcome feedback
 ```
 
+In the TUI, `[n]` starts a blind-first run. After the blind answer is visible, press `[u]` on the selected run to add user opinion or evidence links as claims to verify.
+
 ---
 
 ## 📁 Persistence

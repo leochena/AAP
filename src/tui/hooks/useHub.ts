@@ -41,6 +41,7 @@ export interface UIRunState {
   source: RunSnapshot['source'];
   phase: RunPhase;
   question: string;
+  modelIds: string[];
   modelOutputs: Record<string, string>;
   modelDone: Record<string, boolean>;
   modelDuration: Record<string, number>;
@@ -64,6 +65,7 @@ function emptyRunState(snapshot: RunSnapshot): UIRunState {
     source: snapshot.source,
     phase: snapshot.phase,
     question: snapshot.request.question,
+    modelIds: snapshot.request.modelIds.filter(id => id !== 'all'),
     modelOutputs: {},
     modelDone: {},
     modelDuration: {},
@@ -150,8 +152,11 @@ export function useHub(hub: EngineHub) {
         if (event.type === 'run-start') {
           const snapshot = hub.getRun(event.runId);
           if (!snapshot) return prev;
+          const data = event.data as { models?: Array<{ id: string }> };
           const fresh = emptyRunState(snapshot);
           fresh.phase = 'generating';
+          fresh.modelIds = data.models?.map(model => model.id) ?? fresh.modelIds;
+          fresh.modelOutputs = Object.fromEntries(fresh.modelIds.map(modelId => [modelId, '']));
           setOrder(o => (o.includes(event.runId) ? o : [event.runId, ...o].slice(0, 20)));
           return { ...prev, [event.runId]: fresh };
         }
@@ -191,6 +196,13 @@ export function useHub(hub: EngineHub) {
           ];
         } else if (event.type === 'model-complete') {
           const { response } = event.data as { response: ModelResponse };
+          if (!next.modelIds.includes(response.modelId)) {
+            next.modelIds = [...next.modelIds, response.modelId];
+          }
+          next.modelOutputs = {
+            ...next.modelOutputs,
+            [response.modelId]: next.modelOutputs[response.modelId] || response.content || '',
+          };
           next.modelDone = { ...next.modelDone, [response.modelId]: true };
           next.modelDuration = { ...next.modelDuration, [response.modelId]: response.durationMs };
           next.modelTokens = {
@@ -213,6 +225,15 @@ export function useHub(hub: EngineHub) {
           next.finishedAt = Date.now();
           next.voting = result.voting ?? next.voting;
           next.userOpinion = result.userOpinion ?? next.userOpinion;
+          for (const response of result.responses) {
+            if (!next.modelIds.includes(response.modelId)) {
+              next.modelIds = [...next.modelIds, response.modelId];
+            }
+            next.modelOutputs = {
+              ...next.modelOutputs,
+              [response.modelId]: next.modelOutputs[response.modelId] || response.content || '',
+            };
+          }
         } else if (event.type === 'run-failed') {
           next.phase = 'failed';
           next.finishedAt = Date.now();

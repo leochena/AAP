@@ -114,6 +114,26 @@ export async function streamWithTools(opts: StreamWithToolsOptions): Promise<Str
     }
   }
 
+  if (truncated && !isWithdrawn?.()) {
+    wire.push({
+      role: 'user',
+      content:
+        '工具调用预算已经用完。现在必须停止调用工具，基于上面的工具结果给出最终答案；' +
+        '如果证据不足，请明确说明不确定性，不要继续搜索，也不要编造证据。',
+    });
+    const result = await callOpenAIProtocol({
+      model,
+      messages: wire as unknown as Message[],
+      signal,
+      onDelta,
+    });
+    totalIn += result.tokensIn;
+    totalOut += result.tokensOut;
+    if (result.content.trim()) {
+      finalContent = result.content;
+    }
+  }
+
   return {
     content: finalContent,
     tokensIn: totalIn,

@@ -27,7 +27,7 @@ export function PreflightWarning({
         if (okCount > 0) onDropFailures();
         return;
       }
-      if (input === 'c' || input === 'C') {
+      if (key.return || input === 'c' || input === 'C') {
         onContinueAnyway();
         return;
       }
@@ -55,11 +55,11 @@ export function PreflightWarning({
       </Box>
       <Box marginTop={1} flexDirection="column">
         <Text>
-          <Text color={canDrop ? 'green' : 'gray'}>[d]</Text> 丢掉失败的、用剩余 {okCount} 个继续
-          {!canDrop && <Text dimColor> (无可用模型，不可选)</Text>}
+          <Text color="green">[Enter / c]</Text> 保留全部模型继续（不可用模型会在面板中显示错误）
         </Text>
         <Text>
-          <Text color="yellow">[c]</Text> 强制继续（运行时会自然失败）
+          <Text color={canDrop ? 'yellow' : 'gray'}>[d]</Text> 丢掉失败的、用剩余 {okCount} 个继续
+          {!canDrop && <Text dimColor> (无可用模型，不可选)</Text>}
         </Text>
         <Text>
           <Text color="cyan">[a / Esc]</Text> 放弃本次运行

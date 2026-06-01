@@ -18,6 +18,7 @@ const PHASE_LABEL: Record<UIRunState['phase'], string> = {
   pending: '⋯',
   generating: '生成中',
   'auto-challenge': '挑刺中',
+  'user-opinion': '用户意见',
   voting: '投票中',
   complete: '✓ 完成',
   failed: '✗ 失败',

@@ -26,6 +26,9 @@ import {
   Vote,
   VotingResult,
   AuditMetrics,
+  UserClaim,
+  UserClaimAssessment,
+  UserOpinionResult,
 } from '@/lib/types';
 import { streamModel, callModelNonStream } from '@/engine/ModelClient';
 import { streamWithTools } from '@/lib/clients/openai-tool-loop';
@@ -58,6 +61,13 @@ import {
   getMetrics,
   updateMetrics,
 } from '@/lib/features/audit-metrics';
+import {
+  buildUserOpinionResult,
+  extractUserClaims,
+  formatUserOpinionResult,
+  generateUserClaimReviewPrompt,
+  parseUserClaimAssessmentResponse,
+} from '@/lib/features/user-opinion';
 
 export interface AdversarialEngineOptions {
   request: RunRequest;
@@ -214,6 +224,7 @@ export class AdversarialEngine extends EventEmitter {
       }
 
       let responses: ModelResponse[] = [];
+      let blindResponses: ModelResponse[] = [];
       let challenges: Challenge[] = [];
       const enableAC =
         this.options.request.enableAutoChallenge ??
@@ -229,6 +240,9 @@ export class AdversarialEngine extends EventEmitter {
 
         const prior = round > 1 ? { responses, challenges } : undefined;
         responses = await this.runGenerating(prior);
+        if (round === 1) {
+          blindResponses = responses;
+        }
         // Snapshot reflects the latest round only.
         this.snapshot.responses = {};
         responses.forEach(r => {
@@ -247,6 +261,16 @@ export class AdversarialEngine extends EventEmitter {
           challenges = [];
           this.snapshot.challenges = [];
         }
+      }
+
+      // ==== Phase: User Opinion Review ====
+      let userOpinion: UserOpinionResult | undefined;
+      if (this.options.request.userOpinion) {
+        this.snapshot.phase = 'user-opinion';
+        this.emitEvent('phase-change', { phase: 'user-opinion' });
+        userOpinion = await this.runUserOpinionReview(blindResponses, responses);
+        this.snapshot.userOpinion = userOpinion;
+        this.emitEvent('user-opinion-result', { result: userOpinion });
       }
 
       // ==== Phase: Voting (only on final round responses) ====
@@ -273,6 +297,7 @@ export class AdversarialEngine extends EventEmitter {
         responses,
         challenges: this.snapshot.challenges,
         voting,
+        userOpinion,
         metrics,
         durationMs: Date.now() - start,
       };
@@ -312,11 +337,34 @@ export class AdversarialEngine extends EventEmitter {
         );
       }
     }
+    const userOpinionBlock = this.buildUserOpinionRefinementBlock();
+    if (userOpinionBlock) {
+      parts.push(userOpinionBlock);
+    }
     parts.push(
       '\n请基于以上信息修正和完善你对原问题的回答。如果之前有错误或遗漏，请直接更正；' +
-        '如果你认为之前回答仍然成立，可以重申并补充论据。直接给出新的完整回答，不要用 "我同意" 之类的元评论开头。'
+        '如果你认为之前回答仍然成立，可以重申并补充论据。用户意见只能作为待验证假说，不能作为事实来源或服从对象。' +
+        '直接给出新的完整回答，不要用 "我同意" 之类的元评论开头。'
     );
     return parts.join('\n');
+  }
+
+  private buildUserOpinionRefinementBlock(): string {
+    const opinion = this.options.request.userOpinion;
+    if (!opinion) return '';
+    const claims = extractUserClaims(opinion);
+    if (claims.length === 0) return '';
+    const lines = [
+      '\n\n【用户意见（待验证，不是投票权，也不是事实来源）】',
+      '请逐条判断这些 claim 是否被证据支持；可以采纳、反驳、部分采纳或说明证据不足。不要为了迎合用户而改变结论。',
+    ];
+    for (const claim of claims) {
+      lines.push(`- ${claim.id} [${claim.type}]: ${claim.text}`);
+      if (claim.evidenceUrls.length > 0) {
+        lines.push(`  证据链接: ${claim.evidenceUrls.join(', ')}`);
+      }
+    }
+    return lines.join('\n');
   }
 
   /**
@@ -557,7 +605,11 @@ export class AdversarialEngine extends EventEmitter {
       candidates,
       candidateModels: this.modelMap,
     });
-    const prompt = basePrompt + concessionNote;
+    const userOpinionNote = this.snapshot.userOpinion
+      ? '\n\n【用户意见评审结果（用户意见没有投票权，仅作为已审计 claim 参考）】\n' +
+        formatUserOpinionResult(this.snapshot.userOpinion)
+      : '';
+    const prompt = basePrompt + concessionNote + userOpinionNote;
 
     // 投票者 = 全部未失败的（包括 withdrawn —— 他们承认错了但仍可作为评判者投别人）
     const voters = responses.filter(r => !r.error);
@@ -606,6 +658,89 @@ export class AdversarialEngine extends EventEmitter {
     });
     this.emitEvent('voting-result', { result });
     return result;
+  }
+
+  private async runUserOpinionReview(
+    blindResponses: ModelResponse[],
+    finalResponses: ModelResponse[]
+  ): Promise<UserOpinionResult> {
+    const opinion = this.options.request.userOpinion;
+    if (!opinion) {
+      return buildUserOpinionResult({
+        opinion: { text: '', evidenceUrls: [] },
+        claims: [],
+        assessments: [],
+        blindResponses,
+        finalResponses,
+      });
+    }
+
+    const claims = extractUserClaims(opinion);
+    const assessments = await this.assessUserClaims(claims, blindResponses);
+    return buildUserOpinionResult({
+      opinion,
+      claims,
+      assessments,
+      blindResponses,
+      finalResponses,
+    });
+  }
+
+  private async assessUserClaims(
+    claims: UserClaim[],
+    blindResponses: ModelResponse[]
+  ): Promise<UserClaimAssessment[]> {
+    if (claims.length === 0) return [];
+    const voters = this.options.models.filter(m => {
+      const blind = blindResponses.find(r => r.modelId === m.id);
+      return blind !== undefined && !blind.error;
+    });
+    const tasks: Promise<UserClaimAssessment | null>[] = [];
+
+    for (const claim of claims) {
+      const prompt = generateUserClaimReviewPrompt({
+        question: this.options.request.question,
+        claim,
+        blindResponses,
+      });
+      for (const model of voters) {
+        tasks.push(
+          callModelNonStream(
+            model,
+            [this.buildSystemMessage(), { role: 'user', content: prompt }],
+            { signal: this.options.signal, maxTokens: 512 }
+          )
+            .then(result => {
+              const parsed = parseUserClaimAssessmentResponse(result.content);
+              if (!parsed) {
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[run ${this.runId}] user-claim review from ${model.id} unparseable`
+                );
+                return null;
+              }
+              return {
+                modelId: model.id,
+                claimId: claim.id,
+                stance: parsed.stance,
+                confidence: parsed.confidence,
+                reasoning: parsed.reasoning,
+                evidenceUsed: parsed.evidenceUsed,
+              };
+            })
+            .catch(err => {
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[run ${this.runId}] user-claim review from ${model.id} failed:`,
+                err instanceof Error ? err.message : err
+              );
+              return null;
+            })
+        );
+      }
+    }
+
+    return (await Promise.all(tasks)).filter((a): a is UserClaimAssessment => a !== null);
   }
 
   private computeAuditMetrics(

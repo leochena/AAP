@@ -6,6 +6,7 @@ import { PhaseIndicator } from './PhaseIndicator';
 import { ToolCallView } from './ToolCallView';
 import { ChallengeView } from './ChallengeView';
 import { VoteView } from './VoteView';
+import { UserOpinionView } from './UserOpinionView';
 
 interface Props {
   run?: UIRunState;
@@ -56,6 +57,7 @@ export function RunDetailView({ run, width, rows }: Props) {
       )}
       <ToolCallView toolCalls={run.toolCalls} withdrawals={run.withdrawals} />
       <ChallengeView challenges={run.challenges} />
+      <UserOpinionView result={run.userOpinion} />
       <VoteView result={run.voting} />
       {run.error && (
         <Box paddingX={1}>

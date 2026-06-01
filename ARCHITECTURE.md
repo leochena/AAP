@@ -19,14 +19,14 @@ TUI (ink)  ──┐                  ┌── HTTP Server (Hono)
                                     └── ollama-protocol
 ```
 
-Both the TUI and HTTP routes call `hub.startRun(...)`. Engine events (`run-start`, `chunk`, `phase-change`, `challenge`, `vote`, `voting-result`, `model-complete`, `run-complete`, `run-failed`) are re-emitted on `hub` as `engine-event`. The TUI subscribes for rendering; the HTTP layer subscribes per-request to translate events into OpenAI/Anthropic SSE chunks.
+Both the TUI and HTTP routes call `hub.startRun(...)`. Engine events (`run-start`, `chunk`, `phase-change`, `challenge`, `user-opinion-result`, `voting-result`, `model-complete`, `run-complete`, `run-failed`) are re-emitted on `hub` as `engine-event`. The TUI subscribes for rendering; the HTTP layer subscribes per-request to translate events into OpenAI/Anthropic SSE chunks.
 
 ## 2. Module Responsibilities
 
 ### 2.1 Engine (`src/engine/`)
 | File | Responsibility |
 | :--- | :--- |
-| `AdversarialEngine.ts` | One instance per run. Drives three phases (generating → auto-challenge → voting), emits events, returns final `RunResult`. |
+| `AdversarialEngine.ts` | One instance per run. Drives generating → auto-challenge → optional user-opinion review → voting, emits events, returns final `RunResult`. |
 | `EngineHub.ts` | Global singleton. Tracks active + last-50 completed runs, broadcasts events, owns the `AppConfig`. |
 | `ModelClient.ts` | Dispatches to a protocol client based on `ModelConfig.protocol`. Returns a unified streaming async iterator + a non-stream variant. Extracts `<thinking>` blocks. |
 
@@ -46,6 +46,7 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 | :--- | :--- | :--- |
 | **voting** | Multi-model consensus with majority / weighted / consensus / unanimous modes. | `calculator.ts`, `prompt.ts` |
 | **auto-challenge** | Each model audits others' outputs; parser extracts typed challenges. | `prompt.ts`, `parser.ts` |
+| **user-opinion** | Treats user opinion as verifiable claims, not votes. Models review claims after the blind first pass; aggregation reports adopted / rejected / partial / unresolved claims and sycophancy signals. | `parser.ts`, `prompt.ts`, `aggregator.ts`, `format.ts` |
 | **audit-metrics** | Reliability scoring (A+ ~ D), persisted to `~/.aap/audit-metrics.json`. | `calculator.ts`, `storage.ts` |
 | **thinking-visualization** | Extracts `<thinking>...</thinking>` blocks from model output. | `parser.ts` |
 
@@ -63,10 +64,10 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 | `App.tsx` | ink top-level. Subscribes to `EngineHub`, renders run list + selected detail + input modal. |
 | `hooks/useHub.ts` | React hook turning hub events into `{ runs, order }` state. |
 | `components/RunListPanel.tsx` | List of all active/recent runs (TUI-triggered + HTTP-triggered). |
-| `components/RunDetailView.tsx` | Phase indicator + per-model output panels + challenges + voting result for the selected run. |
-| `components/InputModal.tsx` | Two-stage modal (model multi-select → question entry). |
+| `components/RunDetailView.tsx` | Phase indicator + per-model output panels + challenges + user-opinion verdicts + voting result for the selected run. |
+| `components/InputModal.tsx` | Three-stage modal (model multi-select → question entry → optional user opinion/evidence). |
 | `components/ModelPanel.tsx` | Single model's streaming output column. |
-| `components/PhaseIndicator.tsx`, `ChallengeView.tsx`, `VoteView.tsx` | Sub-views. |
+| `components/PhaseIndicator.tsx`, `ChallengeView.tsx`, `UserOpinionView.tsx`, `VoteView.tsx` | Sub-views. |
 
 ### 2.6 CLI + Config
 | File | Responsibility |
@@ -77,18 +78,19 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 ## 3. Data Flow
 
 ### 3.1 TUI-triggered run
-1. User presses `n`, picks models, types question.
-2. `App.tsx` → `hub.startRun({ question, modelIds, source: 'tui-input' })`.
+1. User presses `n`, picks models, types question, and may add optional opinion/evidence links.
+2. `App.tsx` → `hub.startRun({ question, modelIds, source: 'tui-input', userOpinion? })`.
 3. `useHub` receives `engine-event`s, updates React state, panels re-render with each `chunk`.
 4. On `run-complete`, audit metrics are written to disk.
 
 ### 3.2 HTTP-triggered run
 1. External agent → `POST /v1/chat/completions` with `model: "adversarial:vote"`.
 2. Route parses `model` → `modelIds` + `mode`.
-3. Calls `hub.startRun({ question, modelIds, source: 'http-openai', mode })`.
-4. SSE handler subscribes to that `runId`'s events, translates them into OpenAI chunks.
-5. Final chunk includes `x_adversarial` metadata; closes with `data: [DONE]`.
-6. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
+3. Optional `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` is normalized into `RunRequest.userOpinion`.
+4. Calls `hub.startRun({ question, modelIds, source: 'http-openai', mode, userOpinion? })`.
+5. SSE handler subscribes to that `runId`'s events, translates them into OpenAI chunks.
+6. Final chunk includes `x_adversarial` metadata; closes with `data: [DONE]`.
+7. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
 
 ## 4. Configuration
 

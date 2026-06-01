@@ -19,8 +19,18 @@ type Overlay =
   | { kind: 'none' }
   | { kind: 'input' }
   | { kind: 'discover' }
-  | { kind: 'preflighting'; question: string; modelIds: string[] }
-  | { kind: 'preflight-warn'; question: string; result: PreflightResult }
+  | {
+      kind: 'preflighting';
+      question: string;
+      modelIds: string[];
+      userOpinion?: { text: string; evidenceUrls?: string[] };
+    }
+  | {
+      kind: 'preflight-warn';
+      question: string;
+      result: PreflightResult;
+      userOpinion?: { text: string; evidenceUrls?: string[] };
+    }
   | { kind: 'discover-error'; message: string };
 
 export function App({ hub, serverUrl }: Props) {
@@ -62,30 +72,39 @@ export function App({ hub, serverUrl }: Props) {
     }
   });
 
-  const startRunSafely = (question: string, models: ModelConfig[]) => {
+  const startRunSafely = (
+    question: string,
+    models: ModelConfig[],
+    userOpinion?: { text: string; evidenceUrls?: string[] }
+  ) => {
     try {
       hub.startRun({
         question,
         modelIds: models.map(m => m.id),
         source: 'tui-input',
+        userOpinion,
       });
     } catch {
       /* errors will surface via run snapshot */
     }
   };
 
-  const handleSubmitQuestion = async (question: string, modelIds: string[]) => {
+  const handleSubmitQuestion = async (
+    question: string,
+    modelIds: string[],
+    userOpinion?: { text: string; evidenceUrls?: string[] }
+  ) => {
     const selected = modelIds
       .map(id => config.models.find(m => m.id === id))
       .filter((m): m is ModelConfig => m !== undefined);
-    setOverlay({ kind: 'preflighting', question, modelIds });
+    setOverlay({ kind: 'preflighting', question, modelIds, userOpinion });
     const result = await preflightCheck(selected, { timeoutMs: 5000 });
     if (result.failed.length === 0) {
       setOverlay({ kind: 'none' });
-      startRunSafely(question, result.ok);
+      startRunSafely(question, result.ok, userOpinion);
       return;
     }
-    setOverlay({ kind: 'preflight-warn', question, result });
+    setOverlay({ kind: 'preflight-warn', question, result, userOpinion });
   };
 
   const handleDiscoverSubmit = (newModels: ModelConfig[]) => {
@@ -172,17 +191,19 @@ export function App({ hub, serverUrl }: Props) {
             onDropFailures={() => {
               const q = overlay.question;
               const models = overlay.result.ok;
+              const opinion = overlay.userOpinion;
               setOverlay({ kind: 'none' });
-              startRunSafely(q, models);
+              startRunSafely(q, models, opinion);
             }}
             onAbort={() => setOverlay({ kind: 'none' })}
             onContinueAnyway={() => {
               const q = overlay.question;
+              const opinion = overlay.userOpinion;
               const all = [...overlay.result.ok, ...overlay.result.failed
                 .map(f => config.models.find(m => m.id === f.modelId))
                 .filter((m): m is ModelConfig => m !== undefined)];
               setOverlay({ kind: 'none' });
-              startRunSafely(q, all);
+              startRunSafely(q, all, opinion);
             }}
           />
         </Box>

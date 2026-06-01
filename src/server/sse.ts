@@ -9,6 +9,7 @@ import {
   RunFailedEventData,
 } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
+import { formatUserOpinionResult } from '@/lib/features/user-opinion';
 
 const enc = new TextEncoder();
 
@@ -62,6 +63,11 @@ function formatVotingBlock(result: import('@/lib/types').VotingResult): string {
     .map(([id, v]) => `  - ${id}: ${v.toFixed(2)}`)
     .join('\n');
   return `${winnerLine}${totals}\n`;
+}
+
+function formatUserOpinionBlock(result?: import('@/lib/types').UserOpinionResult): string {
+  const block = formatUserOpinionResult(result);
+  return block ? `${block}\n` : '';
 }
 
 /**
@@ -141,6 +147,14 @@ export function buildOpenAIStream(
                 })
               )
             );
+          } else if (phase === 'user-opinion') {
+            safeEnqueue(
+              ssePayload(
+                makeChunk(responseId, modelLabel, {
+                  content: '\n\n---\n\n### 用户意见评审\n\n',
+                })
+              )
+            );
           }
         } else if (!passthrough && event.type === 'challenge') {
           const { challenge } = event.data as { challenge: import('@/lib/types').Challenge };
@@ -153,6 +167,13 @@ export function buildOpenAIStream(
           };
           safeEnqueue(
             ssePayload(makeChunk(responseId, modelLabel, { content: formatVotingBlock(result) }))
+          );
+        } else if (!passthrough && event.type === 'user-opinion-result') {
+          const { result } = event.data as {
+            result: import('@/lib/types').UserOpinionResult;
+          };
+          safeEnqueue(
+            ssePayload(makeChunk(responseId, modelLabel, { content: formatUserOpinionBlock(result) }))
           );
         } else if (event.type === 'run-complete') {
           const { result } = event.data as RunCompleteEventData;
@@ -175,6 +196,7 @@ export function buildOpenAIStream(
                   })),
                   challenges: result.challenges,
                   voting: result.voting,
+                  userOpinion: result.userOpinion,
                   metrics: result.metrics,
                 },
               };
@@ -290,6 +312,7 @@ export function buildAnthropicStream(
           const { phase } = e.data as { phase: string };
           if (phase === 'auto-challenge') sendDelta('\n\n---\n\n### 🔍 互相挑刺\n\n');
           if (phase === 'voting') sendDelta('\n\n---\n\n### 🗳️ 多模型投票\n\n');
+          if (phase === 'user-opinion') sendDelta('\n\n---\n\n### 用户意见评审\n\n');
         } else if (!passthrough && e.type === 'challenge') {
           const { challenge } = e.data as { challenge: import('@/lib/types').Challenge };
           sendDelta(formatChallengeLine(challenge));
@@ -298,6 +321,11 @@ export function buildAnthropicStream(
             result: import('@/lib/types').VotingResult;
           };
           sendDelta(formatVotingBlock(result));
+        } else if (!passthrough && e.type === 'user-opinion-result') {
+          const { result } = e.data as {
+            result: import('@/lib/types').UserOpinionResult;
+          };
+          sendDelta(formatUserOpinionBlock(result));
         } else if (e.type === 'run-complete') {
           const { result } = e.data as RunCompleteEventData;
           safeEnqueue(eventFrame('content_block_stop', { type: 'content_block_stop', index: 0 }));

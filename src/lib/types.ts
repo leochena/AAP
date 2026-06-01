@@ -164,6 +164,62 @@ export interface VotingResult {
   requiresReview: boolean;
 }
 
+// ========== 用户意见参与 ==========
+
+export interface UserOpinionInput {
+  text: string;
+  evidenceUrls?: string[];
+}
+
+export type UserClaimType = 'fact' | 'preference' | 'hypothesis' | 'evidence';
+
+export interface UserClaim {
+  id: string;
+  text: string;
+  type: UserClaimType;
+  evidenceUrls: string[];
+}
+
+export type UserClaimAssessmentStance = 'support' | 'refute' | 'mixed' | 'insufficient';
+
+export interface UserClaimAssessment {
+  modelId: string;
+  claimId: string;
+  stance: UserClaimAssessmentStance;
+  confidence: number;
+  reasoning?: string;
+  evidenceUsed: boolean;
+}
+
+export type UserClaimVerdictStatus = 'adopted' | 'rejected' | 'partial' | 'unresolved';
+
+export interface UserClaimVerdict {
+  claimId: string;
+  status: UserClaimVerdictStatus;
+  support: number;
+  refute: number;
+  mixed: number;
+  insufficient: number;
+  consensus: number;
+  reason: string;
+}
+
+export interface SycophancySignal {
+  modelId: string;
+  claimId: string;
+  severity: 'low' | 'medium' | 'high';
+  reason: string;
+}
+
+export interface UserOpinionResult {
+  input: UserOpinionInput;
+  claims: UserClaim[];
+  assessments: UserClaimAssessment[];
+  verdicts: UserClaimVerdict[];
+  sycophancySignals: SycophancySignal[];
+  summary: string;
+}
+
 // ========== 审计评分 ==========
 
 export interface AuditMetrics {
@@ -189,6 +245,7 @@ export type RunSource = 'tui-input' | 'http-openai' | 'http-anthropic';
 export type RunPhase =
   | 'pending'
   | 'generating'
+  | 'user-opinion'
   | 'auto-challenge'
   | 'voting'
   | 'complete'
@@ -204,6 +261,11 @@ export interface RunRequest {
   maxRounds?: number;            // 覆盖默认 maxRounds
   /** 覆盖 adversarial.tools.enabled —— 让单次 run 临时开/关工具 */
   useTools?: boolean;
+  /**
+   * 用户意见作为待验证 claim 参与对抗。它不会直接获得投票权；
+   * 引擎会先完成盲审式模型回答，再让模型评审这些 claim。
+   */
+  userOpinion?: UserOpinionInput;
 }
 
 export interface RunSnapshot {
@@ -214,6 +276,7 @@ export interface RunSnapshot {
   responses: Record<string, ModelResponse>;  // modelId → 最终轮 response
   challenges: Challenge[];                    // 最终轮的挑刺
   voting?: VotingResult;
+  userOpinion?: UserOpinionResult;
   startedAt: number;
   finishedAt?: number;
   error?: string;
@@ -226,6 +289,7 @@ export interface RunResult {
   responses: ModelResponse[];
   challenges: Challenge[];
   voting?: VotingResult;
+  userOpinion?: UserOpinionResult;
   metrics: Record<string, AuditMetrics>;
   durationMs: number;
 }
@@ -241,6 +305,7 @@ export type EngineEventType =
   | 'tool-call'
   | 'model-withdrawn'
   | 'challenge'
+  | 'user-opinion-result'
   | 'voting-result'
   | 'run-complete'
   | 'run-failed';
@@ -295,6 +360,10 @@ export interface VoteEventData {
 
 export interface VotingResultEventData {
   result: VotingResult;
+}
+
+export interface UserOpinionResultEventData {
+  result: UserOpinionResult;
 }
 
 export interface RunCompleteEventData {

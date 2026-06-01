@@ -18,6 +18,7 @@ import {
   VotingResult,
   ModelResponse,
   PhaseChangeEventData,
+  UserOpinionResult,
 } from '@/lib/types';
 import { EngineHub } from '@/engine/EngineHub';
 
@@ -46,6 +47,7 @@ export interface UIRunState {
   modelTokens: Record<string, number>;
   modelErrors: Record<string, string>;
   challenges: Challenge[];
+  userOpinion?: UserOpinionResult;
   voting?: VotingResult;
   startedAt: number;
   finishedAt?: number;
@@ -203,11 +205,14 @@ export function useHub(hub: EngineHub) {
           next.challenges = [...next.challenges, challenge];
         } else if (event.type === 'voting-result') {
           next.voting = (event.data as { result: VotingResult }).result;
+        } else if (event.type === 'user-opinion-result') {
+          next.userOpinion = (event.data as { result: UserOpinionResult }).result;
         } else if (event.type === 'run-complete') {
           const { result } = event.data as RunCompleteEventData;
           next.phase = 'complete';
           next.finishedAt = Date.now();
           next.voting = result.voting ?? next.voting;
+          next.userOpinion = result.userOpinion ?? next.userOpinion;
         } else if (event.type === 'run-failed') {
           next.phase = 'failed';
           next.finishedAt = Date.now();

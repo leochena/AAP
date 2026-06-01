@@ -13,8 +13,9 @@ import { Hono } from 'hono';
 import { Context } from 'hono';
 import { stream } from 'hono/streaming';
 import { EngineHub } from '@/engine/EngineHub';
-import { Message, RunRequest, RunResult } from '@/lib/types';
+import { Message, RunRequest, RunResult, UserOpinionInput } from '@/lib/types';
 import { buildOpenAIStream } from '@/server/sse';
+import { formatUserOpinionResult, normalizeUserOpinionInput } from '@/lib/features/user-opinion';
 
 interface ChatCompletionRequest {
   model: string;
@@ -22,6 +23,12 @@ interface ChatCompletionRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  user_opinion?: string | UserOpinionInput;
+  user_evidence?: string[];
+  x_adversarial?: {
+    user_opinion?: string | UserOpinionInput;
+    user_evidence?: string[];
+  };
 }
 
 export function createOpenAIRoutes(hub: EngineHub): Hono {
@@ -73,6 +80,7 @@ export function createOpenAIRoutes(hub: EngineHub): Hono {
     }
 
     const history = messages.slice(0, messages.lastIndexOf(lastUser));
+    const userOpinion = parseUserOpinion(body);
 
     const runRequest: RunRequest = {
       question: lastUser.content,
@@ -81,6 +89,7 @@ export function createOpenAIRoutes(hub: EngineHub): Hono {
       source: 'http-openai',
       enableAutoChallenge: parsed.mode !== 'passthrough',
       enableVoting: parsed.mode !== 'passthrough',
+      userOpinion,
     };
 
     let started: ReturnType<EngineHub['startRun']>;
@@ -221,6 +230,7 @@ function buildOpenAIFinalResponse(
     })),
     challenges: result.challenges,
     voting: result.voting,
+    userOpinion: result.userOpinion,
     metrics: result.metrics,
   };
   return base;
@@ -257,6 +267,10 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
       out += `- **${c.challengerId}** → **${c.targetId}** [${c.severity}] ${c.type}: ${c.reason}\n`;
     }
   }
+  const userOpinionBlock = formatUserOpinionResult(result.userOpinion);
+  if (userOpinionBlock) {
+    out += `\n\n---\n\n${userOpinionBlock}\n`;
+  }
   if (result.voting) {
     out += '\n---\n\n## 🗳️ 投票结果\n\n';
     if (result.voting.winner) {
@@ -270,4 +284,15 @@ function composeFinalContent(mode: ParsedModel['mode'], result: RunResult): stri
     }
   }
   return out.trim();
+}
+
+function parseUserOpinion(body: ChatCompletionRequest): UserOpinionInput | undefined {
+  const raw = body.user_opinion ?? body.x_adversarial?.user_opinion;
+  const opinion = normalizeUserOpinionInput(raw);
+  const evidence = body.user_evidence ?? body.x_adversarial?.user_evidence;
+  if (!opinion && (!evidence || evidence.length === 0)) return undefined;
+  return {
+    text: opinion?.text ?? '用户提供了证据链接，请核验这些证据是否支持最终结论。',
+    evidenceUrls: [...(opinion?.evidenceUrls ?? []), ...(evidence ?? [])],
+  };
 }

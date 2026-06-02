@@ -215,7 +215,7 @@ aap tools enable
 
 Search and link verification are separate services: AAP's HTTP server defaults to `127.0.0.1:28788`; SearXNG usually runs on `127.0.0.1:28080`; model providers are your upstream `/v1` endpoints.
 
-`npm run dev` starts the TUI from source. The header now shows `tools` and `local-repo` status; if local code audit is not ready it prints the exact setup commands. Local repository audit tools do not grant raw disk access. They only expose configured roots, exclude bulky/sensitive directories, and return bounded snippets or exact allowlisted command output. A code-defect conclusion without file/line/test evidence should be treated as unresolved.
+`npm run dev` starts the TUI from source. The header shows `tools` and `local-repo` status; press `[r]` in the TUI to add a source path interactively, or use the CLI commands above. Local repository audit tools do not grant raw disk access. They only expose configured roots, exclude bulky/sensitive directories, and return bounded snippets or exact allowlisted command output. A code-defect conclusion without file/line/test evidence should be treated as unresolved.
 
 ### 4. Run
 
@@ -234,6 +234,7 @@ aap --port 9000          # Override port
 |---|---|
 | `n` | New run (pick models, then type the question) |
 | `a` | Add a model (opens the discovery flow) |
+| `r` | Add a local source-code path for bounded repo audit tools |
 | `↑` / `↓` | Switch between runs |
 | `q` / `Ctrl+C` | Exit |
 

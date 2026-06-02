@@ -6,6 +6,8 @@
  */
 
 import { EventEmitter } from 'events';
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   AdversarialConfig,
   AppConfig,
@@ -71,6 +73,39 @@ export class EngineHub extends EventEmitter {
     for (const m of models) {
       next = addModel(next, m);
     }
+    saveConfig(next);
+    this.config = next;
+    this.emit('config-change', next);
+    return next;
+  }
+
+  /**
+   * Allow a local repository root for the read-only audit tools, enable the
+   * local-repo plugin, and enable the global tool loop. Used by the TUI so
+   * users do not have to leave the app to configure source-code auditing.
+   */
+  addLocalRepoRootAndSave(path: string): AppConfig {
+    const root = resolve(path);
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      throw new Error(`不是有效目录: ${root}`);
+    }
+    const current = this.config.adversarial.tools.localRepo!;
+    const roots = uniqueStrings([...current.roots, root]);
+    const next: AppConfig = {
+      ...this.config,
+      adversarial: {
+        ...this.config.adversarial,
+        tools: {
+          ...this.config.adversarial.tools,
+          enabled: true,
+          localRepo: {
+            ...current,
+            enabled: true,
+            roots,
+          },
+        },
+      },
+    };
     saveConfig(next);
     this.config = next;
     this.emit('config-change', next);
@@ -177,4 +212,8 @@ export class EngineHub extends EventEmitter {
   getRun(runId: string): RunSnapshot | undefined {
     return this.runs.get(runId) ?? this.completedRuns.find(r => r.runId === runId);
   }
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }

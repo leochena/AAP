@@ -28,6 +28,7 @@ export function ToolConfigStatus({ config }: Props) {
   const hints: string[] = [];
   if (!tools.enabled) hints.push('aap tools enable');
   if (!localRepo?.enabled || rootCount === 0) hints.push('aap tools repo add <path>');
+  const tuiHint = !localRepo?.enabled || rootCount === 0 ? 'press [r]' : undefined;
 
   return (
     <Box paddingX={1}>
@@ -39,7 +40,9 @@ export function ToolConfigStatus({ config }: Props) {
         local-repo {localRepo?.enabled && rootCount > 0 ? `${rootCount} root(s)` : 'not configured'}
       </Text>
       {hints.length > 0 && (
-        <Text dimColor> · enable code audit: {hints.join(' && ')}</Text>
+        <Text dimColor>
+          {' '}· enable code audit: {[tuiHint, hints.join(' && ')].filter(Boolean).join(' or ')}
+        </Text>
       )}
     </Box>
   );

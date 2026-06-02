@@ -9,6 +9,7 @@ import { DiscoverModal } from '@/tui/components/DiscoverModal';
 import { PreflightWarning } from '@/tui/components/PreflightWarning';
 import { UserOpinionModal } from '@/tui/components/UserOpinionModal';
 import { ToolConfigStatus } from '@/tui/components/ToolConfigStatus';
+import { LocalRepoModal } from '@/tui/components/LocalRepoModal';
 import { ModelConfig } from '@/lib/types';
 import { preflightCheck, PreflightResult } from '@/engine/preflight';
 
@@ -21,6 +22,7 @@ type Overlay =
   | { kind: 'none' }
   | { kind: 'input' }
   | { kind: 'discover' }
+  | { kind: 'local-repo' }
   | { kind: 'user-opinion'; question: string; modelIds: string[] }
   | {
       kind: 'preflighting';
@@ -34,7 +36,8 @@ type Overlay =
       result: PreflightResult;
       userOpinion?: { text: string; evidenceUrls?: string[] };
     }
-  | { kind: 'discover-error'; message: string };
+  | { kind: 'discover-error'; message: string }
+  | { kind: 'local-repo-result'; ok: boolean; message: string };
 
 export function App({ hub, serverUrl }: Props) {
   const { runs, order, config } = useHub(hub);
@@ -66,6 +69,10 @@ export function App({ hub, serverUrl }: Props) {
     }
     if (input === 'a') {
       setOverlay({ kind: 'discover' });
+      return;
+    }
+    if (input === 'r') {
+      setOverlay({ kind: 'local-repo' });
       return;
     }
     if (input === 'u' && selectedRun) {
@@ -129,6 +136,25 @@ export function App({ hub, serverUrl }: Props) {
     }
   };
 
+  const handleLocalRepoSubmit = (path: string) => {
+    try {
+      const next = hub.addLocalRepoRootAndSave(path);
+      const roots = next.adversarial.tools.localRepo?.roots ?? [];
+      const root = roots[roots.length - 1] ?? path;
+      setOverlay({
+        kind: 'local-repo-result',
+        ok: true,
+        message: `已添加源码路径并开启工具循环: ${root}`,
+      });
+    } catch (err) {
+      setOverlay({
+        kind: 'local-repo-result',
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   const totalRuns = order.length;
   const activeCount = Object.values(runs).filter(
     r => r.phase !== 'complete' && r.phase !== 'failed'
@@ -165,7 +191,7 @@ export function App({ hub, serverUrl }: Props) {
 
       <Box marginTop={1} paddingX={1}>
         <Text dimColor>
-          [↑↓] 切换 run · [n] 新问题 · [u] 追加用户意见 · [a] 添加模型 · [q] 退出
+          [↑↓] 切换 run · [n] 新问题 · [u] 追加用户意见 · [a] 添加模型 · [r] 源码路径 · [q] 退出
         </Text>
       </Box>
 
@@ -184,6 +210,15 @@ export function App({ hub, serverUrl }: Props) {
           <DiscoverModal
             existingIds={config.models.map(m => m.id)}
             onSubmit={handleDiscoverSubmit}
+            onCancel={() => setOverlay({ kind: 'none' })}
+          />
+        </Box>
+      )}
+
+      {overlay.kind === 'local-repo' && (
+        <Box marginTop={1}>
+          <LocalRepoModal
+            onSubmit={handleLocalRepoSubmit}
             onCancel={() => setOverlay({ kind: 'none' })}
           />
         </Box>
@@ -239,6 +274,17 @@ export function App({ hub, serverUrl }: Props) {
       {overlay.kind === 'discover-error' && (
         <Box marginTop={1} borderStyle="double" borderColor="red" paddingX={1} flexDirection="column">
           <Text bold color="red">添加失败</Text>
+          <Text>{overlay.message}</Text>
+          <Text dimColor>按 Enter 关闭</Text>
+          <DismissOnEnter onDismiss={() => setOverlay({ kind: 'none' })} />
+        </Box>
+      )}
+
+      {overlay.kind === 'local-repo-result' && (
+        <Box marginTop={1} borderStyle="double" borderColor={overlay.ok ? 'green' : 'red'} paddingX={1} flexDirection="column">
+          <Text bold color={overlay.ok ? 'green' : 'red'}>
+            {overlay.ok ? '源码路径已配置' : '源码路径配置失败'}
+          </Text>
           <Text>{overlay.message}</Text>
           <Text dimColor>按 Enter 关闭</Text>
           <DismissOnEnter onDismiss={() => setOverlay({ kind: 'none' })} />

@@ -332,22 +332,45 @@ TUI 中 `[n]` 会直接启动盲答 run。盲答出现后，在选中的 run 上
 
 ## 🏗 架构
 
+AAP 现在是 **Node.js CLI + HTTP 协议服务**。它不是 Next.js 应用、Tailwind 页面、浏览器 Web UI、本地大型知识库，也不是某个领域的预测器。
+
+```text
+┌──────────────────────── aap Node.js 进程 ────────────────────────┐
+│                                                                  │
+│  CLI / TUI (Ink)  ───┐                ┌─── HTTP Server (Hono)    │
+│                      └── EngineHub ───┘     全局事件总线          │
+│                              │                                   │
+│                     AdversarialEngine                            │
+│                          每次运行一个                            │
+│                              │                                   │
+│  盲答生成 → 结构化黑板更新 → 自动挑刺                            │
+│       → 挑刺回写黑板 → 自适应轮次控制                            │
+│       → 用户意见 claim 审查 → 投票 → 协议输出                    │
+│                              │                                   │
+│  ModelClient: OpenAI-compatible | Anthropic | Ollama             │
+│  Tools/plugins: search | fetch | exec | capability probes        │
+└──────────────────────────────────────────────────────────────────┘
 ```
-┌─────────────────── aap 进程 ───────────────────┐
-│                                                │
-│   TUI (ink)          HTTP Server (Hono)        │
-│      ↑                    ↑                    │
-│      └────── EngineHub ───┘  ← 全局事件总线     │
-│                  ↓                              │
-│        AdversarialEngine (per-run)              │
-│           ↓        ↓        ↓                  │
-│      ToolRegistry  ModelClient  ConcessionTracker
-│           ↓             ↓                       │
-│      [search, fetch, exec, concede]            │
-│                         ↓                       │
-│           OpenAI / Anthropic / Ollama          │
-└────────────────────────────────────────────────┘
-```
+
+技术形态：
+- **运行时**：Node.js 20+、TypeScript、ESM。
+- **TUI**：Ink（`src/tui/`），和 HTTP run 共用同一个 `EngineHub` 事件流。
+- **服务端**：Hono + `@hono/node-server`（`src/server/`），提供 OpenAI-compatible 和 Anthropic-compatible 路由。
+- **打包**：`tsup` 把 `src/cli.ts` 打成 `dist/cli.js`；React/Ink 相关包作为运行时 external。
+- **配置**：`~/.aap/config.json` 是本地唯一配置源，保存模型 endpoint、协议、服务端、对抗、工具和存储配置。
+- **模型协议**：OpenAI-compatible chat completions、Anthropic messages、Ollama chat 由 `ModelClient` 统一封装。
+- **搜索/工具**：不能默认假设模型自带搜索能力；是否参与搜索由 AAP 的能力探测和工具循环配置决定。
+
+核心协议模块：
+- `structured-deliberation` 是按轮次持续更新的黑板控制器，不是一次性摘要；它累积 `rounds`、`claims`、`evidenceRefs`、`challengeRefs`、`events`、`revisionDirectives`。
+- `claim-graph` 把用户 claim、模型 claim、证据、挑刺、冲突和 verdict 用 support/refute/qualify/depend/conflict 边连成证据-对抗图。
+- `user-opinion` 只在模型盲答之后接入用户自由文本和证据链接，并记录采纳/反驳、证据链和附和风险。
+- `model-profile` 与 `calibration-memory` 只保存轻量行为元数据，让后续 run 根据真实表现调角色和投票权重，而不是按服务商名气硬编码。
+- `output-contract` 强制输出最终结论、置信度、证据链、冲突点、用户 claim 采纳/反驳、附和风险，以及不确定性/复核条件。
+
+轮次控制是自适应的：默认至少 2 轮、最多 4 轮。`maxRounds` 只是安全上限，不代表已经求真；如果还有中/高严重性挑刺或黑板强制修正未解决，会在输出中标记为需要复核。
+
+HTTP 响应仍保持标准 OpenAI/Anthropic-compatible 格式，并通过 `x_adversarial.structuredDeliberation` 携带全过程、按轮次累积的黑板数据。
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 

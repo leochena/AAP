@@ -329,22 +329,45 @@ Under `~/.aap/`:
 
 ## 🏗 Architecture
 
+AAP is a **Node.js CLI + HTTP protocol server**. The current product is not a Next.js app, Tailwind UI, browser Web UI, local knowledge warehouse, or domain-specific predictor.
+
+```text
+┌──────────────────────── aap Node.js process ────────────────────────┐
+│                                                                      │
+│  CLI / TUI (Ink)  ───┐                  ┌─── HTTP Server (Hono)      │
+│                      └──── EngineHub ───┘     global event bus       │
+│                                │                                     │
+│                       AdversarialEngine                              │
+│                              per run                                 │
+│                                │                                     │
+│  generation → structured blackboard update → auto-challenge          │
+│       → blackboard challenge writeback → adaptive round control      │
+│       → user-opinion claim review → voting → protocol output         │
+│                                │                                     │
+│  ModelClient: OpenAI-compatible | Anthropic | Ollama                 │
+│  Tools/plugins: search | fetch | exec | capability probes            │
+└──────────────────────────────────────────────────────────────────────┘
 ```
-┌─────────────────── aap process ────────────────┐
-│                                                │
-│   TUI (ink)          HTTP Server (Hono)        │
-│      ↑                    ↑                    │
-│      └────── EngineHub ───┘  ← global event bus│
-│                  ↓                             │
-│        AdversarialEngine (per-run)             │
-│           ↓        ↓        ↓                  │
-│      ToolRegistry  ModelClient  ConcessionTracker
-│           ↓             ↓                      │
-│      [search, fetch, exec, concede]            │
-│                         ↓                      │
-│           OpenAI / Anthropic / Ollama          │
-└────────────────────────────────────────────────┘
-```
+
+Technical shape:
+- **Runtime**: Node.js 20+, TypeScript, ESM.
+- **TUI**: Ink (`src/tui/`), sharing the same `EngineHub` event stream as HTTP runs.
+- **Server**: Hono + `@hono/node-server` (`src/server/`), exposing OpenAI-compatible and Anthropic-compatible routes.
+- **Bundling**: `tsup` builds `src/cli.ts` into `dist/cli.js`; React/Ink packages remain external runtime dependencies.
+- **Configuration**: `~/.aap/config.json` is the single local source of truth for model endpoints, protocols, server settings, adversarial options, tools, and storage.
+- **Provider protocols**: OpenAI-compatible chat completions, Anthropic messages, and Ollama chat are normalized by `ModelClient`.
+- **Search/tools**: A model is not assumed to have native search. Search participation is controlled by AAP tool capability probing and the configured tool loop.
+
+Core protocol modules:
+- `structured-deliberation` is a round-aware blackboard controller, not a one-time summary. It accumulates `rounds`, `claims`, `evidenceRefs`, `challengeRefs`, `events`, and `revisionDirectives`.
+- `claim-graph` connects user claims, model claims, evidence, challenges, conflicts, and verdicts through explicit support/refute/qualify/depend/conflict edges.
+- `user-opinion` injects user text and evidence links only after blind model answers, then records adoption/refutation and sycophancy risk.
+- `model-profile` and `calibration-memory` keep lightweight behavioral metadata so later runs can adjust roles and voting weights from measured performance instead of provider prestige.
+- `output-contract` requires conclusion, confidence, evidence chain, conflict points, user-claim adoption/rejection, sycophancy risk, and explicit uncertainty/review conditions.
+
+Round control is adaptive: AAP runs at least 2 rounds and at most 4 rounds by default. `maxRounds` is a safety cap, not proof that truth was reached; unresolved high/medium challenges or required blackboard revisions are surfaced as review conditions.
+
+HTTP responses remain standard OpenAI/Anthropic-compatible responses, with `x_adversarial.structuredDeliberation` carrying the accumulated round-aware blackboard data.
 
 Details: [ARCHITECTURE.md](ARCHITECTURE.md).
 

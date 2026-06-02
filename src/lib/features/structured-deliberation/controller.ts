@@ -1,6 +1,8 @@
 import {
+  BlackboardChallengeRef,
   BlackboardClaim,
   BlackboardEvidenceRef,
+  Challenge,
   ConsensusRiskSignal,
   IdentityDriftSignal,
   MinorityProtectionSignal,
@@ -9,6 +11,7 @@ import {
   StructuredConsensusCluster,
   StructuredDeliberationEvent,
   StructuredDeliberationResult,
+  StructuredDeliberationRoundSummary,
   StructuredRevisionDirective,
 } from '@/lib/types';
 
@@ -17,6 +20,9 @@ export interface BuildStructuredDeliberationInput {
   models: ModelConfig[];
   responses: ModelResponse[];
   runId?: string;
+  round?: number;
+  previous?: StructuredDeliberationResult;
+  challenges?: Challenge[];
 }
 
 interface ClaimCluster {
@@ -30,49 +36,120 @@ const MAX_CLAIMS_PER_MODEL = 3;
 export function buildStructuredDeliberation(
   input: BuildStructuredDeliberationInput
 ): StructuredDeliberationResult {
+  const round = Math.max(1, input.round ?? 1);
+  const previous = input.previous;
   const runtimeByModel = new Map(input.models.map(model => [model.id, runtimeIdentity(model)]));
-  const claims = input.responses.flatMap(response => extractClaims(response));
-  const evidenceRefs = extractEvidenceRefs(claims);
-  const identityDriftSignals = input.responses.flatMap(response =>
-    detectIdentityDrift(response, runtimeByModel.get(response.modelId) ?? response.modelId)
+
+  const currentClaims = input.responses.flatMap(response => extractClaims(response, round));
+  const currentEvidenceRefs = extractEvidenceRefs(currentClaims, round);
+  const currentIdentityDriftSignals = input.responses.flatMap(response =>
+    detectIdentityDrift(response, runtimeByModel.get(response.modelId) ?? response.modelId, round)
   );
+  const currentChallengeRefs = (input.challenges ?? []).map(challenge => toChallengeRef(challenge, round));
+
+  const claims = uniqueBy([...(previous?.claims ?? []), ...currentClaims], claim => claim.id);
+  const evidenceRefs = mergeEvidenceRefs(previous?.evidenceRefs ?? [], currentEvidenceRefs);
+  const challengeRefs = uniqueBy(
+    [...(previous?.challengeRefs ?? []), ...currentChallengeRefs],
+    ref => ref.id
+  );
+
   const consensusClusters = buildConsensusClusters(claims, evidenceRefs);
-  const consensusRisks = buildConsensusRisks(consensusClusters);
-  const minorityProtection = buildMinorityProtection(claims, consensusClusters, consensusRisks);
-  const revisionDirectives = buildRevisionDirectives(identityDriftSignals, consensusRisks, minorityProtection);
-  const events = buildEvents({
+  const currentConsensusRisks = buildConsensusRisks(consensusClusters, round);
+  const consensusRisks = uniqueBy(
+    [...(previous?.consensusRisks ?? []), ...currentConsensusRisks],
+    signal => signal.id
+  );
+
+  const currentMinorityProtection = buildMinorityProtection(
     claims,
-    evidenceRefs,
-    identityDriftSignals,
-    consensusRisks,
-    minorityProtection,
-    revisionDirectives,
+    consensusClusters,
+    currentConsensusRisks,
+    round
+  );
+  const minorityProtection = uniqueBy(
+    [...(previous?.minorityProtection ?? []), ...currentMinorityProtection],
+    signal => signal.id
+  );
+  const identityDriftSignals = uniqueBy(
+    [...(previous?.identityDriftSignals ?? []), ...currentIdentityDriftSignals],
+    signal => signal.id
+  );
+
+  const currentRevisionDirectives = buildRevisionDirectives({
+    identity: currentIdentityDriftSignals,
+    risks: currentConsensusRisks,
+    minority: currentMinorityProtection,
+    challenges: currentChallengeRefs,
+    round,
   });
+  const revisionDirectives = uniqueBy(
+    [...(previous?.revisionDirectives ?? []), ...currentRevisionDirectives],
+    directive => directive.id
+  );
+
+  const currentEvents = buildEvents({
+    round,
+    claims: currentClaims,
+    evidenceRefs: currentEvidenceRefs,
+    challengeRefs: currentChallengeRefs,
+    identityDriftSignals: currentIdentityDriftSignals,
+    consensusRisks: currentConsensusRisks,
+    minorityProtection: currentMinorityProtection,
+    revisionDirectives: currentRevisionDirectives,
+  });
+  const events = uniqueBy([...(previous?.events ?? []), ...currentEvents], event => event.id);
+  const rounds = upsertRoundSummary(previous?.rounds ?? [], buildRoundSummary({
+    round,
+    claims: currentClaims,
+    challengeRefs: currentChallengeRefs,
+    identityDriftSignals: currentIdentityDriftSignals,
+    consensusRisks: currentConsensusRisks,
+    minorityProtection: currentMinorityProtection,
+    revisionDirectives: currentRevisionDirectives,
+  }));
+
   const reviewReasons = [
     ...identityDriftSignals.map(signal => `identity drift: ${signal.modelId} claimed ${signal.claimedIdentity}`),
     ...consensusRisks.map(signal => signal.reason),
     ...minorityProtection.map(signal => signal.reason),
+    ...revisionDirectives
+      .filter(directive => directive.source === 'challenge' && directive.required)
+      .map(directive => directive.reason),
   ];
 
   return {
+    currentRound: round,
     claims,
     evidenceRefs,
+    challengeRefs,
     consensusClusters,
     identityDriftSignals,
     consensusRisks,
     minorityProtection,
     revisionDirectives,
+    rounds,
     events,
     reviewReasons,
-    summary: summarize({ claims, consensusRisks, identityDriftSignals, minorityProtection, revisionDirectives }),
+    summary: summarize({
+      currentRound: round,
+      rounds,
+      claims,
+      challengeRefs,
+      consensusRisks,
+      identityDriftSignals,
+      minorityProtection,
+      revisionDirectives,
+    }),
   };
 }
 
-function extractClaims(response: ModelResponse): BlackboardClaim[] {
+function extractClaims(response: ModelResponse, round: number): BlackboardClaim[] {
   if (response.error || !response.content.trim()) return [];
   const urls = extractUrls(response.content);
   return candidateClaimTexts(response.content).slice(0, MAX_CLAIMS_PER_MODEL).map((text, index) => ({
-    id: `claim:${response.modelId}:${index + 1}`,
+    id: `claim:r${round}:${response.modelId}:${index + 1}`,
+    round,
     modelId: response.modelId,
     text,
     fingerprint: fingerprint(text),
@@ -92,7 +169,7 @@ function candidateClaimTexts(content: string): string[] {
   return uniqueBy(cleaned, line => fingerprint(line));
 }
 
-function extractEvidenceRefs(claims: BlackboardClaim[]): BlackboardEvidenceRef[] {
+function extractEvidenceRefs(claims: BlackboardClaim[], round: number): BlackboardEvidenceRef[] {
   const refs = new Map<string, BlackboardEvidenceRef>();
   for (const claim of claims) {
     for (const url of claim.evidenceRefs) {
@@ -104,6 +181,7 @@ function extractEvidenceRefs(claims: BlackboardClaim[]): BlackboardEvidenceRef[]
       }
       refs.set(id, {
         id,
+        firstSeenRound: round,
         sourceModelId: claim.modelId,
         url,
         host: safeHost(url),
@@ -114,9 +192,29 @@ function extractEvidenceRefs(claims: BlackboardClaim[]): BlackboardEvidenceRef[]
   return [...refs.values()];
 }
 
+function mergeEvidenceRefs(
+  previous: BlackboardEvidenceRef[],
+  current: BlackboardEvidenceRef[]
+): BlackboardEvidenceRef[] {
+  const refs = new Map(previous.map(ref => [ref.id, { ...ref, claimIds: [...ref.claimIds] }]));
+  for (const ref of current) {
+    const existing = refs.get(ref.id);
+    if (!existing) {
+      refs.set(ref.id, { ...ref, claimIds: [...ref.claimIds] });
+      continue;
+    }
+    for (const claimId of ref.claimIds) {
+      if (!existing.claimIds.includes(claimId)) existing.claimIds.push(claimId);
+    }
+    existing.firstSeenRound = Math.min(existing.firstSeenRound, ref.firstSeenRound);
+  }
+  return [...refs.values()];
+}
+
 function detectIdentityDrift(
   response: ModelResponse,
-  runtime: string
+  runtime: string,
+  round: number
 ): IdentityDriftSignal[] {
   if (response.error || !response.content.trim()) return [];
   const runtimeFamilies = identityFamilies(runtime);
@@ -124,7 +222,8 @@ function detectIdentityDrift(
   return claims
     .filter(claim => !runtimeFamilies.has(claim.family))
     .map((claim, index) => ({
-      id: `identity:${response.modelId}:${index + 1}`,
+      id: `identity:r${round}:${response.modelId}:${index + 1}`,
+      round,
       modelId: response.modelId,
       runtimeIdentity: runtime,
       claimedIdentity: claim.label,
@@ -132,6 +231,21 @@ function detectIdentityDrift(
       evidenceText: claim.evidenceText,
       reason: `Runtime configured this participant as ${runtime}, but its output claimed ${claim.label}.`,
     }));
+}
+
+function toChallengeRef(challenge: Challenge, round: number): BlackboardChallengeRef {
+  return {
+    id: `challenge:r${round}:${challenge.id}`,
+    round,
+    challengeId: challenge.id,
+    challengerId: challenge.challengerId,
+    targetId: challenge.targetId,
+    type: challenge.type,
+    severity: challenge.severity,
+    confidence: challenge.confidence,
+    targetSegment: challenge.targetSegment,
+    reason: challenge.reason,
+  };
 }
 
 function buildConsensusClusters(
@@ -172,11 +286,15 @@ function buildConsensusClusters(
   });
 }
 
-function buildConsensusRisks(clusters: StructuredConsensusCluster[]): ConsensusRiskSignal[] {
+function buildConsensusRisks(
+  clusters: StructuredConsensusCluster[],
+  round: number
+): ConsensusRiskSignal[] {
   return clusters
     .filter(cluster => cluster.risk !== 'none')
     .map(cluster => ({
-      id: `risk:${cluster.id}`,
+      id: `risk:r${round}:${cluster.id}`,
+      round,
       clusterId: cluster.id,
       modelIds: cluster.modelIds,
       claimIds: cluster.claimIds,
@@ -191,7 +309,8 @@ function buildConsensusRisks(clusters: StructuredConsensusCluster[]): ConsensusR
 function buildMinorityProtection(
   claims: BlackboardClaim[],
   clusters: StructuredConsensusCluster[],
-  risks: ConsensusRiskSignal[]
+  risks: ConsensusRiskSignal[],
+  round: number
 ): MinorityProtectionSignal[] {
   if (risks.length === 0) return [];
   const largestRisk = risks
@@ -203,7 +322,8 @@ function buildMinorityProtection(
   return claims
     .filter(claim => !largestRisk.claimIds.includes(claim.id))
     .map(claim => ({
-      id: `minority:${claim.id}`,
+      id: `minority:r${round}:${claim.id}`,
+      round,
       modelId: claim.modelId,
       claimId: claim.id,
       againstClusterId: largestRisk.id,
@@ -212,47 +332,70 @@ function buildMinorityProtection(
     }));
 }
 
-function buildRevisionDirectives(
-  identity: IdentityDriftSignal[],
-  risks: ConsensusRiskSignal[],
-  minority: MinorityProtectionSignal[]
-): StructuredRevisionDirective[] {
+function buildRevisionDirectives(input: {
+  identity: IdentityDriftSignal[];
+  risks: ConsensusRiskSignal[];
+  minority: MinorityProtectionSignal[];
+  challenges: BlackboardChallengeRef[];
+  round: number;
+}): StructuredRevisionDirective[] {
   const directives: StructuredRevisionDirective[] = [];
-  for (const signal of identity) {
+  for (const signal of input.identity) {
     directives.push({
-      id: `rev:${signal.id}`,
+      id: `rev:r${input.round}:${signal.id}`,
+      round: input.round,
       modelId: signal.modelId,
       targetClaimIds: [],
+      source: 'identity-drift',
       reason: signal.reason,
       required: true,
     });
   }
-  for (const risk of risks) {
+  for (const risk of input.risks) {
     for (const modelId of risk.modelIds) {
       directives.push({
-        id: `rev:${risk.id}:${modelId}`,
+        id: `rev:r${input.round}:${risk.id}:${modelId}`,
+        round: input.round,
         modelId,
         targetClaimIds: risk.claimIds,
+        source: 'consensus-risk',
         reason: 'Consensus cluster needs independent evidence or explicit uncertainty before final adjudication.',
         required: risk.severity !== 'low',
       });
     }
   }
-  for (const signal of minority) {
+  for (const signal of input.minority) {
     directives.push({
-      id: `rev:${signal.id}`,
+      id: `rev:r${input.round}:${signal.id}`,
+      round: input.round,
       modelId: signal.modelId,
       targetClaimIds: [signal.claimId],
+      source: 'minority-protection',
       reason: 'Minority claim preserved for forced adjudication against the majority cluster.',
       required: false,
+    });
+  }
+  for (const challenge of input.challenges) {
+    directives.push({
+      id: `rev:r${input.round}:challenge:${challenge.challengeId}:${challenge.targetId}`,
+      round: input.round,
+      modelId: challenge.targetId,
+      targetClaimIds: [],
+      source: 'challenge',
+      reason:
+        `${challenge.challengerId} challenged ${challenge.targetId} ` +
+        `[${challenge.type}/${challenge.severity}, confidence=${challenge.confidence.toFixed(2)}]: ${challenge.reason}`,
+      required: challenge.severity === 'high' || challenge.severity === 'medium',
     });
   }
   return directives;
 }
 
 function buildEvents(input: {
+  round: number;
   claims: BlackboardClaim[];
   evidenceRefs: BlackboardEvidenceRef[];
+  challengeRefs: BlackboardChallengeRef[];
   identityDriftSignals: IdentityDriftSignal[];
   consensusRisks: ConsensusRiskSignal[];
   minorityProtection: MinorityProtectionSignal[];
@@ -261,8 +404,8 @@ function buildEvents(input: {
   const events: StructuredDeliberationEvent[] = [];
   for (const claim of input.claims) {
     events.push({
-      id: `event:${claim.id}`,
-      round: 1,
+      id: `event:r${input.round}:${claim.id}`,
+      round: input.round,
       actorId: claim.modelId,
       action: 'propose_claim',
       targetId: claim.id,
@@ -272,8 +415,8 @@ function buildEvents(input: {
   }
   for (const evidence of input.evidenceRefs) {
     events.push({
-      id: `event:${evidence.id}`,
-      round: 1,
+      id: `event:r${input.round}:${evidence.id}`,
+      round: input.round,
       actorId: evidence.sourceModelId,
       action: 'register_evidence',
       targetId: evidence.id,
@@ -281,10 +424,21 @@ function buildEvents(input: {
       summary: `${evidence.sourceModelId} registered evidence host ${evidence.host}`,
     });
   }
+  for (const challenge of input.challengeRefs) {
+    events.push({
+      id: `event:r${input.round}:${challenge.id}`,
+      round: input.round,
+      actorId: challenge.challengerId,
+      action: 'register_challenge',
+      targetId: challenge.targetId,
+      payload: challenge as unknown as Record<string, unknown>,
+      summary: `${challenge.challengerId} challenged ${challenge.targetId}`,
+    });
+  }
   for (const signal of input.identityDriftSignals) {
     events.push({
-      id: `event:${signal.id}`,
-      round: 1,
+      id: `event:r${input.round}:${signal.id}`,
+      round: input.round,
       actorId: 'controller',
       action: 'flag_identity_drift',
       targetId: signal.modelId,
@@ -294,8 +448,8 @@ function buildEvents(input: {
   }
   for (const signal of input.consensusRisks) {
     events.push({
-      id: `event:${signal.id}`,
-      round: 1,
+      id: `event:r${input.round}:${signal.id}`,
+      round: input.round,
       actorId: 'controller',
       action: 'flag_consensus_risk',
       targetId: signal.clusterId,
@@ -305,8 +459,8 @@ function buildEvents(input: {
   }
   for (const signal of input.minorityProtection) {
     events.push({
-      id: `event:${signal.id}`,
-      round: 1,
+      id: `event:r${input.round}:${signal.id}`,
+      round: input.round,
       actorId: 'controller',
       action: 'protect_minority',
       targetId: signal.claimId,
@@ -316,8 +470,8 @@ function buildEvents(input: {
   }
   for (const directive of input.revisionDirectives) {
     events.push({
-      id: `event:${directive.id}`,
-      round: 1,
+      id: `event:r${input.round}:${directive.id}`,
+      round: input.round,
       actorId: 'controller',
       action: 'request_revision',
       targetId: directive.modelId,
@@ -326,6 +480,40 @@ function buildEvents(input: {
     });
   }
   return events;
+}
+
+function buildRoundSummary(input: {
+  round: number;
+  claims: BlackboardClaim[];
+  challengeRefs: BlackboardChallengeRef[];
+  identityDriftSignals: IdentityDriftSignal[];
+  consensusRisks: ConsensusRiskSignal[];
+  minorityProtection: MinorityProtectionSignal[];
+  revisionDirectives: StructuredRevisionDirective[];
+}): StructuredDeliberationRoundSummary {
+  return {
+    round: input.round,
+    claimIds: input.claims.map(claim => claim.id),
+    challengeIds: input.challengeRefs.map(challenge => challenge.id),
+    consensusRiskIds: input.consensusRisks.map(signal => signal.id),
+    identityDriftSignalIds: input.identityDriftSignals.map(signal => signal.id),
+    minorityProtectionIds: input.minorityProtection.map(signal => signal.id),
+    revisionDirectiveIds: input.revisionDirectives.map(directive => directive.id),
+    summary:
+      `round ${input.round}: claims=${input.claims.length}, ` +
+      `challenges=${input.challengeRefs.length}, ` +
+      `risks=${input.consensusRisks.length}, ` +
+      `directives=${input.revisionDirectives.length}`,
+  };
+}
+
+function upsertRoundSummary(
+  rounds: StructuredDeliberationRoundSummary[],
+  current: StructuredDeliberationRoundSummary
+): StructuredDeliberationRoundSummary[] {
+  const next = rounds.filter(round => round.round !== current.round);
+  next.push(current);
+  return next.sort((a, b) => a.round - b.round);
 }
 
 function runtimeIdentity(model: ModelConfig): string {
@@ -440,14 +628,18 @@ function stableId(value: string): string {
 }
 
 function summarize(input: {
+  currentRound: number;
+  rounds: StructuredDeliberationRoundSummary[];
   claims: BlackboardClaim[];
+  challengeRefs: BlackboardChallengeRef[];
   consensusRisks: ConsensusRiskSignal[];
   identityDriftSignals: IdentityDriftSignal[];
   minorityProtection: MinorityProtectionSignal[];
   revisionDirectives: StructuredRevisionDirective[];
 }): string {
   return (
-    `blackboard claims=${input.claims.length}, ` +
+    `blackboard round=${input.currentRound}, rounds=${input.rounds.length}, ` +
+    `claims=${input.claims.length}, challenges=${input.challengeRefs.length}, ` +
     `consensusRisks=${input.consensusRisks.length}, ` +
     `identityDrift=${input.identityDriftSignals.length}, ` +
     `minorityProtected=${input.minorityProtection.length}, ` +

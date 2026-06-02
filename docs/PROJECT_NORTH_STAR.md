@@ -22,7 +22,7 @@ Core runtime work must improve at least one protocol primitive:
 
 - Claim extraction and normalization.
 - Evidence-adversarial graph construction (`src/lib/features/claim-graph`).
-- Structured blackboard / roundtable control metadata (`src/lib/features/structured-deliberation`).
+- Structured blackboard / roundtable control metadata across generation and challenge rounds (`src/lib/features/structured-deliberation`).
 - Evidence quality, source reliability, and traceability.
 - Anti-sycophancy detection and scoring (`src/lib/features/user-opinion` and protocol output).
 - Dynamic model profiling, role assignment, and vote weighting (`src/lib/features/model-profile`).

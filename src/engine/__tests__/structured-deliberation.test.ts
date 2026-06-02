@@ -125,6 +125,13 @@ describe('AdversarialEngine structured deliberation', () => {
     expect(generationRounds).toBe(3);
     expect(result.roundsCompleted).toBe(3);
     expect(result.roundStopReason).toBe('converged');
+    expect(result.structuredDeliberation?.rounds.map(round => round.round)).toEqual([1, 2, 3]);
+    expect(result.structuredDeliberation?.challengeRefs).toHaveLength(2);
+    expect(result.structuredDeliberation?.revisionDirectives).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'challenge', modelId: 'm2', required: true }),
+      ])
+    );
   });
 
   it('marks review required when max rounds are reached with unresolved conflicts', async () => {

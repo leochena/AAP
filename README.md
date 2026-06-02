@@ -45,6 +45,7 @@
                   ┌──── Phase 4: Auto-Challenge ────┐
                   │  every model audits every other  │
                   │  flags factual / logical / gaps  │
+                  │  challenges write back to board  │
                   └──────────────┬───────────────────┘
                                  ▼
                   ┌──── Phase 5: Voting ────────────┐
@@ -109,7 +110,8 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 - Anti-sycophancy scoring down-weights models that support a user claim without evidence after a blind first pass
 
 ### Structured blackboard protocol
-- Blind answers are converted into structured claims, evidence refs, consensus clusters, and controller events before peer challenge starts
+- Every generation round updates structured claims, evidence refs, consensus clusters, and controller events
+- Peer challenges are registered back into the blackboard and become revision directives for the next round
 - Low-independence consensus is flagged so "two models agree" is not treated as truth by itself
 - Divergent minority claims are preserved for adjudication instead of being overwritten by majority wording
 - Identity drift is surfaced when a runtime participant claims to be a different model family, and the signal feeds model-profile scoring
@@ -125,7 +127,7 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 - Final truth-seeking contract summary near the top of the run detail: representative answer, confidence, review state, and stop reason
 - Cross-model challenges (type / severity / confidence / cited fragment / reason)
 - **Tool-call panel**: which model called which tool, ok/✗, result preview
-- Structured blackboard panel for consensus risk, identity drift, minority protection, and revision directives
+- Structured blackboard panel for per-round claims, registered challenges, consensus risk, identity drift, minority protection, and revision directives
 - Concession block (purple ⚐) for honest withdrawals
 - Voting distribution
 - Multi-round progress indicator
@@ -399,6 +401,12 @@ The release workflow runs type-check, tests, build, then `npm publish --access p
 ## 🗺 Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the current plan, good first issue areas, and non-goals.
+
+---
+
+## Friends
+
+- [linux.do](https://linux.do/) - developer community for builders and AI tool users.
 
 ---
 

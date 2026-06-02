@@ -306,6 +306,7 @@ export interface UserOpinionResult {
 export type StructuredDeliberationEventAction =
   | 'propose_claim'
   | 'register_evidence'
+  | 'register_challenge'
   | 'flag_identity_drift'
   | 'flag_consensus_risk'
   | 'protect_minority'
@@ -323,6 +324,7 @@ export interface StructuredDeliberationEvent {
 
 export interface BlackboardClaim {
   id: string;
+  round: number;
   modelId: string;
   text: string;
   fingerprint: string;
@@ -333,14 +335,29 @@ export interface BlackboardClaim {
 
 export interface BlackboardEvidenceRef {
   id: string;
+  firstSeenRound: number;
   sourceModelId: string;
   url: string;
   host: string;
   claimIds: string[];
 }
 
+export interface BlackboardChallengeRef {
+  id: string;
+  round: number;
+  challengeId: string;
+  challengerId: string;
+  targetId: string;
+  type: ChallengeType;
+  severity: ChallengeSeverity;
+  confidence: number;
+  targetSegment: string;
+  reason: string;
+}
+
 export interface IdentityDriftSignal {
   id: string;
+  round: number;
   modelId: string;
   runtimeIdentity: string;
   claimedIdentity: string;
@@ -351,6 +368,7 @@ export interface IdentityDriftSignal {
 
 export interface ConsensusRiskSignal {
   id: string;
+  round: number;
   clusterId: string;
   modelIds: string[];
   claimIds: string[];
@@ -361,6 +379,7 @@ export interface ConsensusRiskSignal {
 
 export interface MinorityProtectionSignal {
   id: string;
+  round: number;
   modelId: string;
   claimId: string;
   againstClusterId: string;
@@ -379,20 +398,36 @@ export interface StructuredConsensusCluster {
 
 export interface StructuredRevisionDirective {
   id: string;
+  round: number;
   modelId: string;
   targetClaimIds: string[];
+  source: 'identity-drift' | 'consensus-risk' | 'minority-protection' | 'challenge';
   reason: string;
   required: boolean;
 }
 
+export interface StructuredDeliberationRoundSummary {
+  round: number;
+  claimIds: string[];
+  challengeIds: string[];
+  consensusRiskIds: string[];
+  identityDriftSignalIds: string[];
+  minorityProtectionIds: string[];
+  revisionDirectiveIds: string[];
+  summary: string;
+}
+
 export interface StructuredDeliberationResult {
+  currentRound: number;
   claims: BlackboardClaim[];
   evidenceRefs: BlackboardEvidenceRef[];
+  challengeRefs: BlackboardChallengeRef[];
   consensusClusters: StructuredConsensusCluster[];
   identityDriftSignals: IdentityDriftSignal[];
   consensusRisks: ConsensusRiskSignal[];
   minorityProtection: MinorityProtectionSignal[];
   revisionDirectives: StructuredRevisionDirective[];
+  rounds: StructuredDeliberationRoundSummary[];
   events: StructuredDeliberationEvent[];
   reviewReasons: string[];
   summary: string;

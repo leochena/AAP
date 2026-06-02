@@ -24,7 +24,7 @@
 
 ## 结构化黑板是什么？
 
-在盲答之后、同行挑刺之前，AAP 会把模型输出转换成结构化 claim、证据引用、共识簇、controller 事件和修正指令。这样模型之间的沟通不再依赖自由文本互相附和。低独立证据共识、少数派保护和身份漂移信号都会显示在 TUI、HTTP 输出和 `x_adversarial.structuredDeliberation` 里。
+AAP 会把每一轮生成结果转换成结构化 claim、证据引用、共识簇、controller 事件和修正指令。模型互相挑刺也会回写进黑板，所以下一轮修正拿到的是 challenge-derived revision directives，而不只是自由文本辩论记录。低独立证据共识、少数派保护、身份漂移、每轮摘要和注册挑刺都会显示在 TUI、HTTP 输出和 `x_adversarial.structuredDeliberation` 里。
 
 ## AAP 会固定第 2 轮结束吗？
 

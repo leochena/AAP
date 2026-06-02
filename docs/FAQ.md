@@ -24,7 +24,7 @@ The first model answer is blind: it does not see the user opinion. If a model la
 
 ## What is the structured blackboard?
 
-After blind answers and before peer challenge, AAP converts model outputs into structured claims, evidence refs, consensus clusters, controller events, and revision directives. This makes model-to-model communication auditable without relying on free-form agreement. Low-independence consensus, protected minority claims, and identity-drift signals are surfaced in TUI, HTTP output, and `x_adversarial.structuredDeliberation`.
+AAP converts every generation round into structured claims, evidence refs, consensus clusters, controller events, and revision directives. Peer challenges are also registered back into the blackboard, so the next refinement round receives challenge-derived revision directives instead of only free-form debate text. Low-independence consensus, protected minority claims, identity-drift signals, per-round summaries, and challenge refs are surfaced in TUI, HTTP output, and `x_adversarial.structuredDeliberation`.
 
 ## Does AAP stop after exactly two rounds?
 

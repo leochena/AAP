@@ -295,18 +295,18 @@ export class AdversarialEngine extends EventEmitter {
         responses.forEach(r => {
           this.snapshot.responses[r.modelId] = r;
         });
-        if (round === 1) {
-          this.snapshot.phase = 'deliberation';
-          this.emitEvent('phase-change', { phase: 'deliberation' });
-          structuredDeliberation = buildStructuredDeliberation({
-            question: this.options.request.question,
-            models: this.options.models,
-            responses,
-            runId: this.runId,
-          });
-          this.snapshot.structuredDeliberation = structuredDeliberation;
-          this.emitEvent('deliberation-result', { result: structuredDeliberation });
-        }
+        this.snapshot.phase = 'deliberation';
+        this.emitEvent('phase-change', { phase: 'deliberation' });
+        structuredDeliberation = buildStructuredDeliberation({
+          question: this.options.request.question,
+          models: this.options.models,
+          responses,
+          runId: this.runId,
+          round,
+          previous: structuredDeliberation,
+        });
+        this.snapshot.structuredDeliberation = structuredDeliberation;
+        this.emitEvent('deliberation-result', { result: structuredDeliberation });
 
         // ==== Phase: Auto-Challenge ====
         // Run challenges every round so round n+1 can refine off them.
@@ -316,6 +316,17 @@ export class AdversarialEngine extends EventEmitter {
           this.emitEvent('phase-change', { phase: 'auto-challenge' });
           challenges = await this.runAutoChallenge(responses);
           this.snapshot.challenges = challenges;
+          structuredDeliberation = buildStructuredDeliberation({
+            question: this.options.request.question,
+            models: this.options.models,
+            responses,
+            runId: this.runId,
+            round,
+            previous: structuredDeliberation,
+            challenges,
+          });
+          this.snapshot.structuredDeliberation = structuredDeliberation;
+          this.emitEvent('deliberation-result', { result: structuredDeliberation });
         } else {
           challenges = [];
           this.snapshot.challenges = [];
@@ -526,9 +537,10 @@ export class AdversarialEngine extends EventEmitter {
       }
     }
     if (
-      input.round === 1 &&
       (cfg?.continueOnRequiredRevision ?? true) &&
-      (input.structuredDeliberation?.revisionDirectives ?? []).some(d => d.required)
+      (input.structuredDeliberation?.revisionDirectives ?? []).some(
+        d => d.required && d.round === input.round
+      )
     ) {
       reasons.push('required structured-blackboard revision');
     }

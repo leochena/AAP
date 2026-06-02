@@ -66,6 +66,16 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 | **audit-metrics** | Reliability scoring (A+ ~ D), persisted to `~/.aap/audit-metrics.json`. | `calculator.ts`, `storage.ts` |
 | **thinking-visualization** | Extracts `<thinking>...</thinking>` blocks from model output. | `parser.ts` |
 
+### 2.3.1 Tools (`src/lib/tools/`)
+| Tool | Responsibility | Safety boundary |
+| :--- | :--- | :--- |
+| `search` | Query configured SearXNG for web evidence. | External access only through configured endpoint; calls are logged. |
+| `fetch_url` | Fetch readable HTTP/HTTPS text for URL verification. | Rejects non-HTTP URLs and non-text content; byte-limited. |
+| `exec_python` | Run one-shot Python code for calculation or parsing. | Docker sandbox, `--network none`, memory/CPU/time limited, no mounted repo. |
+| `repo_list_files`, `repo_search`, `repo_read_file` | Optional local-repo audit plugin for configured repository roots. | Read-only, root allowlisted, line/byte limited, secret-redacted, and hard-excludes `.git`, `dist`, `assets`, `node_modules`, Python envs, caches, and generated outputs. |
+| `repo_run_command` | Optional validation runner for local repo checks. | Disabled by default; only exact `allowedCommands` entries run in an allowed root. |
+| `concede` | Honest withdrawal when evidence proves the model wrong. | Local-only tracker, no external call. |
+
 ### 2.4 Server (`src/server/`)
 | File | Responsibility |
 | :--- | :--- |

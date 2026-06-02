@@ -99,8 +99,11 @@
   - `search` — 通过本地 SearXNG 搜索互联网
   - `fetch_url` — 抓取 URL 验证内容
   - `exec_python` — 沙箱执行（一次性 Docker，`--network none`，stdlib only）
+  - `repo_list_files` / `repo_search` / `repo_read_file` — 可选本地仓库审计工具，只能访问配置过的 root
+  - `repo_run_command` — 可选验证命令工具，只执行 allowlist 中完全匹配的命令
   - `concede` — **主动认错退出**：模型见到证据后承认错误、可选 defer to 同行
 - **Capability probe**：自动探测每个模型对 tool-calling 的真实支持，结果缓存 24h；不可靠的模型在工具运行时被自动剔除
+- **本地仓库安全边界**：repo 工具默认关闭、只读、root 白名单、限制行数/字节、密钥脱敏，并硬排除 `.git`、`dist`、`assets`、`node_modules`、Python 环境、缓存和生成产物
 - **当前日期注入**：每个 prompt 自动带 system 消息告知"今天是 X 年 X 月 X 日"，避免模型把训练截止时间当成"现在"
 - **求真 > 收敛**：投票若不达共识，输出"需人工审查"而非强造 winner
 
@@ -206,10 +209,15 @@ aap probe
 # 看探测结果 + 工具配置
 aap tools list
 
+# 可选：允许一个本地仓库 root 进入受控、只读的代码审计工具
+aap tools repo add /path/to/your/repo
+
 # 编辑 ~/.aap/config.json，把 adversarial.tools.enabled 改 true
 ```
 
 AAP server、搜索服务、模型平台是三类地址：AAP 默认 `127.0.0.1:28788`；SearXNG 常用 `127.0.0.1:28080`；模型服务商是各自的 `/v1` endpoint。
+
+本地仓库审计工具不会给模型裸磁盘权限。它只暴露配置过的 root，排除大型/敏感目录，只返回有限代码片段或 allowlist 命令输出。没有文件、行号或测试输出支撑的代码缺陷结论，应视为证据不足。
 
 ### 4. 启动
 
@@ -310,6 +318,8 @@ aap config path                  # 打印 config.json 路径
 
 aap probe [ids...] [--all]       # 探测 tool-calling 能力
 aap tools list                   # 显示工具配置 + 模型能力状态
+aap tools repo add <path>        # 添加一个本地仓库 root，供受控只读审计工具使用
+aap tools repo list              # 查看本地仓库 roots 和限制
 aap profile list                 # 查看模型画像、附和风险和投票权重倍率
 aap calibration add --model <id> --task-type <type> --probability <0-1> --outcome true|false
 aap calibration summary          # 查看事后结果回填后的校准汇总
@@ -348,7 +358,7 @@ AAP 现在是 **Node.js CLI + HTTP 协议服务**。它不是 Next.js 应用、T
 │       → 用户意见 claim 审查 → 投票 → 协议输出                    │
 │                              │                                   │
 │  ModelClient: OpenAI-compatible | Anthropic | Ollama             │
-│  Tools/plugins: search | fetch | exec | capability probes        │
+│  Tools/plugins: search | fetch | exec | local repo | probes      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 

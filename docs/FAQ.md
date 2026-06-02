@@ -14,6 +14,10 @@ No. Voting only helps when the voters have independent evidence and different fa
 
 Models can claim they "searched" or "checked" even when they did not call a tool. AAP records actual tool calls in the run log and TUI, so you can tell whether a model used `search`, `fetch_url`, `exec_python`, or `concede`.
 
+## Can AAP audit my local code safely?
+
+Yes, but only through the optional local-repo tools. Run `aap tools repo add <path>` to allow a specific repository root, then enable `adversarial.tools.enabled`. The tools are read-only and bounded: they list files, search text, read limited file snippets, and optionally run exact allowlisted validation commands. They hard-exclude `.git`, `dist`, `assets`, `node_modules`, Python environments, caches, generated outputs, and common secret files. If a model reports a code defect without file/line/test evidence from these tools, treat it as unresolved.
+
 ## Can user opinions participate in the debate?
 
 Yes. Pass `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` through the HTTP API. In the TUI, start the blind run first, then press `u` on the selected run to add user opinion / evidence links. AAP parses the text into claims, fetches evidence URLs when `fetch_url` is enabled, asks models to review each claim after the blind first pass, and returns adopted / rejected / partial / unresolved verdicts. User opinion never receives direct voting power.

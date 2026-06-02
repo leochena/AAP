@@ -15,7 +15,8 @@ import { render } from 'ink';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
 import packageJson from '../package.json';
 import { loadConfig, saveConfig, addModel, removeModel, updateModel, DEFAULT_STORAGE_DIR } from '@/config/loader';
 import { ModelConfig, ModelProtocol } from '@/lib/types';
@@ -256,8 +257,13 @@ toolsCmd
     console.log(`  searxng:    ${t.searxngUrl}  (engines: ${t.searchEngines})`);
     console.log(`  fetch_url:  ${t.fetchUrl.enabled ? 'on' : 'off'}  (max ${t.fetchUrl.maxBytes}B)`);
     console.log(`  exec_python: ${t.codeExec.enabled ? 'on' : 'off'}  (${t.codeExec.image}, ${t.codeExec.timeoutMs}ms${t.codeExec.wslDistro ? ', wsl='+t.codeExec.wslDistro : ''})`);
+    console.log(`  local_repo: ${t.localRepo?.enabled ? 'on' : 'off'}  (${t.localRepo?.roots.length ?? 0} root(s), max read ${t.localRepo?.maxReadBytes ?? 0}B)`);
     console.log(`  concede:    ${t.concede.enabled ? 'on' : 'off'}`);
     console.log(`  max calls per generation: ${t.maxToolCallsPerGeneration}`);
+    if ((t.localRepo?.roots.length ?? 0) > 0) {
+      console.log('  local repo roots:');
+      t.localRepo!.roots.forEach((root, index) => console.log(`    root-${index + 1}: ${root}`));
+    }
     console.log();
 
     const cache = loadCapabilityCache(cfg.storageDir);
@@ -272,6 +278,124 @@ toolsCmd
       else status = `[31m✗ no[0m (${cached.reason.slice(0, 60)})`;
       console.log(`  ${m.id.padEnd(40)} ${status}`);
     }
+  });
+
+const repoToolsCmd = toolsCmd
+  .command('repo')
+  .description('配置本地仓库只读审计工具');
+
+repoToolsCmd
+  .command('list')
+  .description('列出本地仓库审计工具配置')
+  .action(() => {
+    const cfg = loadConfig();
+    const localRepo = cfg.adversarial.tools.localRepo!;
+    console.log(`localRepo.enabled: ${localRepo.enabled ? 'true' : 'false'}`);
+    console.log(`allowCommands: ${localRepo.allowCommands ? 'true' : 'false'}`);
+    console.log(`limits: maxFiles=${localRepo.maxFiles}, maxFileBytes=${localRepo.maxFileBytes}, maxReadBytes=${localRepo.maxReadBytes}, maxSearchResults=${localRepo.maxSearchResults}`);
+    if (localRepo.roots.length === 0) {
+      console.log('(no roots configured)');
+      return;
+    }
+    localRepo.roots.forEach((root, index) => console.log(`root-${index + 1}: ${root}`));
+  });
+
+repoToolsCmd
+  .command('add <path>')
+  .description('添加允许读取的本地仓库 root，并开启 localRepo 工具')
+  .action((path: string) => {
+    const root = resolve(path);
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      console.error(`不是有效目录: ${root}`);
+      process.exit(1);
+    }
+    const cfg = loadConfig();
+    const localRepo = cfg.adversarial.tools.localRepo!;
+    const roots = uniqueStrings([...localRepo.roots, root]);
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          localRepo: {
+            ...localRepo,
+            enabled: true,
+            roots,
+          },
+        },
+      },
+    });
+    console.log(`✓ 已添加本地仓库 root-${roots.indexOf(root) + 1}: ${root}`);
+    console.log('注意：还需要 adversarial.tools.enabled=true，本地仓库工具才会进入模型工具循环。');
+  });
+
+repoToolsCmd
+  .command('remove <root>')
+  .description('删除本地仓库 root，可传 root-1 / 1 / 绝对路径')
+  .action((root: string) => {
+    const cfg = loadConfig();
+    const localRepo = cfg.adversarial.tools.localRepo!;
+    const index = resolveRootIndex(localRepo.roots, root);
+    if (index < 0) {
+      console.error(`未找到 root: ${root}`);
+      process.exit(1);
+    }
+    const removed = localRepo.roots[index];
+    const roots = localRepo.roots.filter((_, i) => i !== index);
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          localRepo: {
+            ...localRepo,
+            roots,
+            enabled: roots.length > 0 && localRepo.enabled,
+          },
+        },
+      },
+    });
+    console.log(`✓ 已删除本地仓库 root: ${removed}`);
+  });
+
+repoToolsCmd
+  .command('enable')
+  .description('开启本地仓库审计工具')
+  .action(() => {
+    const cfg = loadConfig();
+    const localRepo = cfg.adversarial.tools.localRepo!;
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          localRepo: { ...localRepo, enabled: true },
+        },
+      },
+    });
+    console.log('✓ localRepo 已开启');
+  });
+
+repoToolsCmd
+  .command('disable')
+  .description('关闭本地仓库审计工具')
+  .action(() => {
+    const cfg = loadConfig();
+    const localRepo = cfg.adversarial.tools.localRepo!;
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          localRepo: { ...localRepo, enabled: false },
+        },
+      },
+    });
+    console.log('✓ localRepo 已关闭');
   });
 
 // ===== model profile / calibration commands =====
@@ -402,6 +526,24 @@ calibrationCmd
       }
     }
   });
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function resolveRootIndex(roots: string[], input: string): number {
+  const match = /^root-(\d+)$/i.exec(input.trim());
+  const numeric = match ? Number(match[1]) : Number(input);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= roots.length) {
+    return numeric - 1;
+  }
+  const resolved = resolve(input);
+  return roots.findIndex(root => {
+    const left = process.platform === 'win32' ? resolve(root).toLowerCase() : resolve(root);
+    const right = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+    return left === right;
+  });
+}
 
 program.parseAsync().catch(err => {
   console.error(err);

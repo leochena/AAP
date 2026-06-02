@@ -14,6 +14,10 @@
 
 模型可能声称自己"搜索过"或"查证过"，但实际上没有调用任何工具。AAP 会记录真实工具调用，并在 TUI 中显示哪个模型调用了 `search`、`fetch_url`、`exec_python` 或 `concede`。
 
+## AAP 能安全审计我的本地代码吗？
+
+可以，但只能通过可选的 local-repo 工具。先运行 `aap tools repo add <path>` 授权一个具体仓库 root，再开启 `adversarial.tools.enabled`。这些工具只读且有边界：列文件、搜索文本、读取有限文件片段，并可选运行 allowlist 中完全匹配的验证命令。它会硬排除 `.git`、`dist`、`assets`、`node_modules`、Python 环境、缓存、生成产物和常见密钥文件。如果模型没有通过这些工具给出文件、行号或测试输出证据就报告代码缺陷，应视为证据不足。
+
 ## 用户意见能参与对抗吗？
 
 可以。HTTP API 支持 `user_opinion`、`user_evidence`、`x_adversarial.user_opinion`。TUI 里先启动盲答 run，再在选中的 run 上按 `u` 追加用户意见/证据链接。AAP 会把文本拆成 claim，在 `fetch_url` 启用时抓取证据链接，让模型在盲审第一轮之后逐条评审，最终输出采纳 / 反驳 / 部分采纳 / 证据不足。用户意见不会直接获得投票权。

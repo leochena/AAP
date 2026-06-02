@@ -49,6 +49,17 @@ export const DEFAULT_CONFIG: AppConfig = {
         cpus: '0.5',
         wslDistro: process.platform === 'win32' ? 'Ubuntu' : undefined,
       },
+      localRepo: {
+        enabled: false,
+        roots: [],
+        maxFiles: 200,
+        maxFileBytes: 256 * 1024,
+        maxReadBytes: 16 * 1024,
+        maxSearchResults: 40,
+        allowCommands: false,
+        allowedCommands: ['npm test', 'npm run type-check', 'npm run build'],
+        commandTimeoutMs: 30000,
+      },
       concede: { enabled: true },
       maxToolCallsPerGeneration: 6,
       capabilityCacheHours: 24,
@@ -128,6 +139,10 @@ function mergeWithDefaults(
         codeExec: {
           ...DEFAULT_CONFIG.adversarial.tools.codeExec,
           ...(partial.adversarial?.tools?.codeExec ?? {}),
+        },
+        localRepo: {
+          ...DEFAULT_CONFIG.adversarial.tools.localRepo!,
+          ...(partial.adversarial?.tools?.localRepo ?? {}),
         },
         concede: {
           ...DEFAULT_CONFIG.adversarial.tools.concede,

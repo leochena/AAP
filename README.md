@@ -98,8 +98,11 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
   - `search` — local SearXNG search
   - `fetch_url` — fetch a URL and extract readable text
   - `exec_python` — sandboxed Python (one-shot Docker container, `--network none`, stdlib only)
+  - `repo_list_files` / `repo_search` / `repo_read_file` — optional local-repo audit tools for configured roots only
+  - `repo_run_command` — optional validation command runner; executes only exact allowlisted commands
   - `concede` — **honest withdrawal**: a model that sees evidence proving it wrong can declare so and optionally `defer_to` a peer
 - **Capability probe**: each model is tested for genuine tool-calling support; results cached 24 h, unsupported models are auto-dropped when tools are active
+- **Local-repo safety**: repo tools are off by default, read-only, root allowlisted, line/byte limited, secret-redacted, and hard-exclude `.git`, `dist`, `assets`, `node_modules`, Python envs, caches, and generated outputs
 - **Current-date system message**: every prompt is told today's ISO date so models don't fall back to their training cutoff
 - **Truth > convergence**: if voting can't reach the threshold the system outputs "needs human review" rather than fabricating a winner
 
@@ -203,10 +206,15 @@ aap probe
 # Inspect probe results + tool config
 aap tools list
 
+# Optional: allow a local repository for bounded read-only code audit tools
+aap tools repo add /path/to/your/repo
+
 # Edit ~/.aap/config.json and set adversarial.tools.enabled to true
 ```
 
 Search and link verification are separate services: AAP's HTTP server defaults to `127.0.0.1:28788`; SearXNG usually runs on `127.0.0.1:28080`; model providers are your upstream `/v1` endpoints.
+
+Local repository audit tools do not grant raw disk access. They only expose configured roots, exclude bulky/sensitive directories, and return bounded snippets or exact allowlisted command output. A code-defect conclusion without file/line/test evidence should be treated as unresolved.
 
 ### 4. Run
 
@@ -307,6 +315,8 @@ aap config path                  # print config.json path
 
 aap probe [ids...] [--all]       # probe tool-calling support
 aap tools list                   # show tool config + per-model capability
+aap tools repo add <path>        # allow one local repo root for bounded read-only audit tools
+aap tools repo list              # show configured repo roots and limits
 aap profile list                 # show model profile, sycophancy risk, vote multiplier
 aap calibration add --model <id> --task-type <type> --probability <0-1> --outcome true|false
 aap calibration summary          # summarize later outcome feedback
@@ -345,7 +355,7 @@ AAP is a **Node.js CLI + HTTP protocol server**. The current product is not a Ne
 │       → user-opinion claim review → voting → protocol output         │
 │                                │                                     │
 │  ModelClient: OpenAI-compatible | Anthropic | Ollama                 │
-│  Tools/plugins: search | fetch | exec | capability probes            │
+│  Tools/plugins: search | fetch | exec | local repo | probes          │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 

@@ -42,6 +42,16 @@ import { searchToolDef, makeSearchHandler } from '@/lib/tools/search';
 import { fetchUrlToolDef, makeFetchUrlHandler } from '@/lib/tools/fetch';
 import { execPythonToolDef, makeExecPythonHandler } from '@/lib/tools/code-exec';
 import {
+  repoListFilesToolDef,
+  repoSearchToolDef,
+  repoReadFileToolDef,
+  repoRunCommandToolDef,
+  makeRepoListFilesHandler,
+  makeRepoSearchHandler,
+  makeRepoReadFileHandler,
+  makeRepoRunCommandHandler,
+} from '@/lib/tools/local-repo';
+import {
   concedeToolDef,
   makeConcedeHandler,
   InMemoryConcessionTracker,
@@ -151,6 +161,22 @@ export class AdversarialEngine extends EventEmitter {
           wslDistro: cfg.codeExec.wslDistro,
         })
       );
+    }
+    if (cfg.localRepo?.enabled) {
+      const localRepoOptions = {
+        roots: cfg.localRepo.roots,
+        maxFiles: cfg.localRepo.maxFiles,
+        maxFileBytes: cfg.localRepo.maxFileBytes,
+        maxReadBytes: cfg.localRepo.maxReadBytes,
+        maxSearchResults: cfg.localRepo.maxSearchResults,
+        allowCommands: cfg.localRepo.allowCommands,
+        allowedCommands: cfg.localRepo.allowedCommands,
+        commandTimeoutMs: cfg.localRepo.commandTimeoutMs,
+      };
+      reg.register(repoListFilesToolDef, makeRepoListFilesHandler(localRepoOptions));
+      reg.register(repoSearchToolDef, makeRepoSearchHandler(localRepoOptions));
+      reg.register(repoReadFileToolDef, makeRepoReadFileHandler(localRepoOptions));
+      reg.register(repoRunCommandToolDef, makeRepoRunCommandHandler(localRepoOptions));
     }
     if (cfg.concede.enabled) {
       reg.register(concedeToolDef, makeConcedeHandler(this.concessions));
@@ -584,6 +610,7 @@ export class AdversarialEngine extends EventEmitter {
       '在回答涉及时间、最近事件、版本号、价格、人物近况等时效性内容时，请以此日期为准 —— 不要假设你的训练截止时间就是"现在"。',
     ];
     if (toolsAvailable) {
+      const localRepo = this.options.adversarialConfig.tools.localRepo;
       lines.push(
         '',
         '你可以使用以下工具来获取外部证据：',
@@ -591,6 +618,17 @@ export class AdversarialEngine extends EventEmitter {
         '- fetch_url(url): 抓取并返回 URL 内容，用来验证你回忆中的链接是否真实存在。',
         '- exec_python(code): 在隔离沙箱执行 Python 代码。任何数值计算、单位换算、数据处理必须用此工具，比口算可靠。',
         '- concede(reason, defer_to?): 当工具结果显示你之前的判断错了，主动调用此工具承认错误并退出本次评估。诚实认错是高荣誉信号 —— 比硬撑或编造好得多。',
+      );
+      if (localRepo?.enabled) {
+        lines.push(
+          '- repo_list_files(root?, pattern?): 列出已配置本地仓库 root 内的文件。',
+          '- repo_search(query, root?, pattern?): 在已配置本地仓库 root 内搜索文本，返回文件和行号。',
+          '- repo_read_file(path, root?, start_line?, line_count?): 读取已配置本地仓库 root 内的有限文件片段。',
+          '- repo_run_command(command, root?): 只运行配置 allowlist 中完全匹配的验证命令；若禁用会返回错误。',
+          '分析本地代码缺陷时，必须先使用 repo_list_files / repo_search / repo_read_file 获取代码证据。没有文件路径、行号或测试输出时，只能说证据不足，不能编造缺陷。'
+        );
+      }
+      lines.push(
         '',
         '原则：**求真 > 给出听起来完整的答案**。如果工具结果显示证据不足，请明确说"基于现有证据无法确定"或调用 concede 退出，**不要编造工具调用结果或想象不存在的资料**。'
       );

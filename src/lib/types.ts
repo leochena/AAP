@@ -79,6 +79,23 @@ export interface AdversarialConfig {
       cpus: string;
       wslDistro?: string;
     };
+    /**
+     * Local repository audit tools. These are read-only by default and may only
+     * access explicitly configured roots. Tool results are sent to the selected
+     * model providers, so roots should point at repositories the operator is
+     * willing to expose in bounded snippets.
+     */
+    localRepo?: {
+      enabled: boolean;
+      roots: string[];
+      maxFiles: number;
+      maxFileBytes: number;
+      maxReadBytes: number;
+      maxSearchResults: number;
+      allowCommands: boolean;
+      allowedCommands: string[];
+      commandTimeoutMs: number;
+    };
     concede: { enabled: boolean };
     maxToolCallsPerGeneration: number;
     capabilityCacheHours: number;

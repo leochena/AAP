@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { makeSearchHandler } from '../search';
 import { makeFetchUrlHandler } from '../fetch';
 import { makeConcedeHandler, InMemoryConcessionTracker } from '../concede';
+import {
+  makeRepoListFilesHandler,
+  makeRepoReadFileHandler,
+  makeRepoSearchHandler,
+} from '../local-repo';
 
 const ctx = { modelId: 'm', runId: 'r' } as const;
 
@@ -148,5 +156,93 @@ describe('concede tool', () => {
     await handler({ reason: 'second' }, { modelId: 'm', runId: 'r' });
     expect(tracker.list()).toHaveLength(1);
     expect(tracker.list()[0].reason).toBe('first');
+  });
+});
+
+describe('local repo audit tools', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  function makeRepo(): string {
+    const root = mkdtempSync(join(tmpdir(), 'aap-local-repo-'));
+    const fakeSecret = ['sk', 'thisShouldBeRedacted1234567890'].join('-');
+    tempDirs.push(root);
+    mkdirSync(join(root, 'src'), { recursive: true });
+    mkdirSync(join(root, 'dist'), { recursive: true });
+    mkdirSync(join(root, '.git'), { recursive: true });
+    mkdirSync(join(root, 'assets'), { recursive: true });
+    mkdirSync(join(root, 'node_modules', 'pkg'), { recursive: true });
+    mkdirSync(join(root, '.venv', 'Lib', 'site-packages'), { recursive: true });
+    writeFileSync(join(root, 'src', 'app.ts'), `export const token = "${fakeSecret}";\nexport function run() { return 1; }\n`);
+    writeFileSync(join(root, 'dist', 'bundle.js'), 'generated bug marker\n');
+    writeFileSync(join(root, '.git', 'config'), 'secret git marker\n');
+    writeFileSync(join(root, 'assets', 'demo.txt'), 'asset marker\n');
+    writeFileSync(join(root, 'node_modules', 'pkg', 'index.js'), 'dependency marker\n');
+    writeFileSync(join(root, '.venv', 'Lib', 'site-packages', 'pkg.py'), 'python env marker\n');
+    writeFileSync(join(root, '.env'), 'API_KEY=secret\n');
+    return root;
+  }
+
+  it('lists only allowed repository files and excludes bulky or sensitive directories', async () => {
+    const root = makeRepo();
+    const handler = makeRepoListFilesHandler({ roots: [root], maxFiles: 50 });
+    const result = await handler({}, ctx);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.content).toContain('src/app.ts');
+      expect(result.content).not.toContain('dist/bundle.js');
+      expect(result.content).not.toContain('.git/config');
+      expect(result.content).not.toContain('assets/demo.txt');
+      expect(result.content).not.toContain('node_modules');
+      expect(result.content).not.toContain('.venv');
+      expect(result.content).not.toContain('.env');
+    }
+  });
+
+  it('searches only allowed text files and redacts secret-shaped values', async () => {
+    const root = makeRepo();
+    const handler = makeRepoSearchHandler({ roots: [root], maxSearchResults: 20 });
+    const fakeQuery = ['sk', 'thisShouldBeRedacted'].join('-');
+    const fakeSecret = ['sk', 'thisShouldBeRedacted1234567890'].join('-');
+    const result = await handler({ query: fakeQuery, max_results: 5 }, ctx);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.content).toContain('src/app.ts:1');
+      expect(result.content).toContain('[REDACTED]');
+      expect(result.content).not.toContain(fakeQuery);
+      expect(result.content).not.toContain(fakeSecret);
+    }
+  });
+
+  it('rejects path escapes and blocked generated directories', async () => {
+    const root = makeRepo();
+    const handler = makeRepoReadFileHandler({ roots: [root] });
+    const outside = await handler({ path: '../outside.txt' }, ctx);
+    const dist = await handler({ path: 'dist/bundle.js' }, ctx);
+
+    expect(outside.ok).toBe(false);
+    if (!outside.ok) expect(outside.error).toMatch(/escapes/);
+    expect(dist.ok).toBe(false);
+    if (!dist.ok) expect(dist.error).toMatch(/blocked|too large|binary|missing/);
+  });
+
+  it('reads bounded line-numbered snippets from allowed files', async () => {
+    const root = makeRepo();
+    const handler = makeRepoReadFileHandler({ roots: [root], maxReadBytes: 200 });
+    const result = await handler({ path: 'src/app.ts', start_line: 2, line_count: 1 }, ctx);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.content).toContain('File: src/app.ts');
+      expect(result.content).toContain('2 | export function run()');
+      expect(result.content).not.toContain('1 |');
+    }
   });
 });

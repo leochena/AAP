@@ -248,6 +248,42 @@ program
 const toolsCmd = program.command('tools').description('查看工具运行时状态');
 
 toolsCmd
+  .command('enable')
+  .description('开启工具求真模式（adversarial.tools.enabled=true）')
+  .action(() => {
+    const cfg = loadConfig();
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          enabled: true,
+        },
+      },
+    });
+    console.log('✓ tools 已开启');
+  });
+
+toolsCmd
+  .command('disable')
+  .description('关闭工具求真模式（adversarial.tools.enabled=false）')
+  .action(() => {
+    const cfg = loadConfig();
+    saveConfig({
+      ...cfg,
+      adversarial: {
+        ...cfg.adversarial,
+        tools: {
+          ...cfg.adversarial.tools,
+          enabled: false,
+        },
+      },
+    });
+    console.log('✓ tools 已关闭');
+  });
+
+toolsCmd
   .command('list')
   .description('显示当前 tools 配置 + 各模型 tool-calling 状态')
   .action(() => {

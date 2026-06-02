@@ -212,12 +212,13 @@ aap tools list
 # 可选：允许一个本地仓库 root 进入受控、只读的代码审计工具
 aap tools repo add /path/to/your/repo
 
-# 编辑 ~/.aap/config.json，把 adversarial.tools.enabled 改 true
+# 开启工具循环
+aap tools enable
 ```
 
 AAP server、搜索服务、模型平台是三类地址：AAP 默认 `127.0.0.1:28788`；SearXNG 常用 `127.0.0.1:28080`；模型服务商是各自的 `/v1` endpoint。
 
-本地仓库审计工具不会给模型裸磁盘权限。它只暴露配置过的 root，排除大型/敏感目录，只返回有限代码片段或 allowlist 命令输出。没有文件、行号或测试输出支撑的代码缺陷结论，应视为证据不足。
+`npm run dev` 会从源码启动 TUI。标题下方现在会显示 `tools` 和 `local-repo` 状态；如果本地代码审计还没配置好，会直接显示下一步命令。本地仓库审计工具不会给模型裸磁盘权限。它只暴露配置过的 root，排除大型/敏感目录，只返回有限代码片段或 allowlist 命令输出。没有文件、行号或测试输出支撑的代码缺陷结论，应视为证据不足。
 
 ### 4. 启动
 
@@ -318,6 +319,8 @@ aap config path                  # 打印 config.json 路径
 
 aap probe [ids...] [--all]       # 探测 tool-calling 能力
 aap tools list                   # 显示工具配置 + 模型能力状态
+aap tools enable                 # 开启工具求真模式
+aap tools disable                # 关闭工具求真模式
 aap tools repo add <path>        # 添加一个本地仓库 root，供受控只读审计工具使用
 aap tools repo list              # 查看本地仓库 roots 和限制
 aap profile list                 # 查看模型画像、附和风险和投票权重倍率

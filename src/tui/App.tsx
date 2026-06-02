@@ -8,6 +8,7 @@ import { InputModal } from '@/tui/components/InputModal';
 import { DiscoverModal } from '@/tui/components/DiscoverModal';
 import { PreflightWarning } from '@/tui/components/PreflightWarning';
 import { UserOpinionModal } from '@/tui/components/UserOpinionModal';
+import { ToolConfigStatus } from '@/tui/components/ToolConfigStatus';
 import { ModelConfig } from '@/lib/types';
 import { preflightCheck, PreflightResult } from '@/engine/preflight';
 
@@ -149,6 +150,8 @@ export function App({ hub, serverUrl }: Props) {
           {'  '}活跃: {activeCount} / 总: {totalRuns} · 已配置模型: {config.models.length}
         </Text>
       </Box>
+
+      <ToolConfigStatus config={config} />
 
       <Box flexDirection="column" marginTop={1}>
         <Text bold>📋 运行列表</Text>

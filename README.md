@@ -209,12 +209,13 @@ aap tools list
 # Optional: allow a local repository for bounded read-only code audit tools
 aap tools repo add /path/to/your/repo
 
-# Edit ~/.aap/config.json and set adversarial.tools.enabled to true
+# Enable the tool loop
+aap tools enable
 ```
 
 Search and link verification are separate services: AAP's HTTP server defaults to `127.0.0.1:28788`; SearXNG usually runs on `127.0.0.1:28080`; model providers are your upstream `/v1` endpoints.
 
-Local repository audit tools do not grant raw disk access. They only expose configured roots, exclude bulky/sensitive directories, and return bounded snippets or exact allowlisted command output. A code-defect conclusion without file/line/test evidence should be treated as unresolved.
+`npm run dev` starts the TUI from source. The header now shows `tools` and `local-repo` status; if local code audit is not ready it prints the exact setup commands. Local repository audit tools do not grant raw disk access. They only expose configured roots, exclude bulky/sensitive directories, and return bounded snippets or exact allowlisted command output. A code-defect conclusion without file/line/test evidence should be treated as unresolved.
 
 ### 4. Run
 
@@ -315,6 +316,8 @@ aap config path                  # print config.json path
 
 aap probe [ids...] [--all]       # probe tool-calling support
 aap tools list                   # show tool config + per-model capability
+aap tools enable                 # enable tool-grounded runs
+aap tools disable                # disable tool-grounded runs
 aap tools repo add <path>        # allow one local repo root for bounded read-only audit tools
 aap tools repo list              # show configured repo roots and limits
 aap profile list                 # show model profile, sycophancy risk, vote multiplier

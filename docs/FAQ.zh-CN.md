@@ -16,7 +16,7 @@
 
 ## AAP 能安全审计我的本地代码吗？
 
-可以，但只能通过可选的 local-repo 工具。先运行 `aap tools repo add <path>` 授权一个具体仓库 root，再开启 `adversarial.tools.enabled`。这些工具只读且有边界：列文件、搜索文本、读取有限文件片段，并可选运行 allowlist 中完全匹配的验证命令。它会硬排除 `.git`、`dist`、`assets`、`node_modules`、Python 环境、缓存、生成产物和常见密钥文件。如果模型没有通过这些工具给出文件、行号或测试输出证据就报告代码缺陷，应视为证据不足。
+可以，但只能通过可选的 local-repo 工具。先运行 `aap tools repo add <path>` 授权一个具体仓库 root，再运行 `aap tools enable` 开启工具循环。`npm run dev` 启动的 TUI 会显示 `tools` 和 `local-repo` 是否就绪。这些工具只读且有边界：列文件、搜索文本、读取有限文件片段，并可选运行 allowlist 中完全匹配的验证命令。它会硬排除 `.git`、`dist`、`assets`、`node_modules`、Python 环境、缓存、生成产物和常见密钥文件。如果模型没有通过这些工具给出文件、行号或测试输出证据就报告代码缺陷，应视为证据不足。
 
 ## 用户意见能参与对抗吗？
 

@@ -16,7 +16,7 @@ Models can claim they "searched" or "checked" even when they did not call a tool
 
 ## Can AAP audit my local code safely?
 
-Yes, but only through the optional local-repo tools. Run `aap tools repo add <path>` to allow a specific repository root, then enable `adversarial.tools.enabled`. The tools are read-only and bounded: they list files, search text, read limited file snippets, and optionally run exact allowlisted validation commands. They hard-exclude `.git`, `dist`, `assets`, `node_modules`, Python environments, caches, generated outputs, and common secret files. If a model reports a code defect without file/line/test evidence from these tools, treat it as unresolved.
+Yes, but only through the optional local-repo tools. Run `aap tools repo add <path>` to allow a specific repository root, then `aap tools enable` to enable the tool loop. The TUI started by `npm run dev` shows whether `tools` and `local-repo` are ready. The tools are read-only and bounded: they list files, search text, read limited file snippets, and optionally run exact allowlisted validation commands. They hard-exclude `.git`, `dist`, `assets`, `node_modules`, Python environments, caches, generated outputs, and common secret files. If a model reports a code defect without file/line/test evidence from these tools, treat it as unresolved.
 
 ## Can user opinions participate in the debate?
 

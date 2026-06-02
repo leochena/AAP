@@ -221,6 +221,7 @@ export function buildOpenAIStream(
                 ...makeChunk(responseId, modelLabel, {}, 'stop'),
                 x_adversarial: {
                   runId: result.runId,
+                  reportPath: result.reportPath,
                   durationMs: result.durationMs,
                   roundsCompleted: result.roundsCompleted,
                   roundStopReason: result.roundStopReason,
@@ -386,7 +387,19 @@ export function buildAnthropicStream(
               },
             })
           );
-          safeEnqueue(eventFrame('message_stop', { type: 'message_stop' }));
+          safeEnqueue(eventFrame('message_stop', {
+            type: 'message_stop',
+            x_adversarial: passthrough
+              ? undefined
+              : {
+                  runId: result.runId,
+                  reportPath: result.reportPath,
+                  durationMs: result.durationMs,
+                  roundsCompleted: result.roundsCompleted,
+                  roundStopReason: result.roundStopReason,
+                  roundStopDetail: result.roundStopDetail,
+                },
+          }));
           closeStream();
         } else if (e.type === 'run-failed') {
           const { error } = e.data as RunFailedEventData;

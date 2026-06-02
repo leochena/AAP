@@ -566,6 +566,8 @@ export interface RunSnapshot {
   roundsCompleted?: number;
   roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
   roundStopDetail?: string;
+  /** Durable markdown report for the full final answer and protocol metadata. */
+  reportPath?: string;
 }
 
 export interface RunResult {
@@ -581,6 +583,8 @@ export interface RunResult {
   roundsCompleted?: number;
   roundStopReason?: 'converged' | 'max-rounds' | 'single-round';
   roundStopDetail?: string;
+  /** Durable markdown report for the full final answer and protocol metadata. */
+  reportPath?: string;
 }
 
 // ========== Engine 事件 ==========

@@ -61,6 +61,7 @@ export function RunDetailView({ run, width, rows }: Props) {
         totalRounds={run.totalRounds}
         roundStopReason={run.roundStopReason}
         roundStopDetail={run.roundStopDetail}
+        reportPath={run.reportPath}
       />
       {visibleIds.length > 0 && (
         <ModelPanel

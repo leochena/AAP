@@ -18,6 +18,10 @@
 
 可以，但只能通过可选的 local-repo 工具。在 TUI 里按 `[r]` 可以交互式添加源码路径；用 CLI 则运行 `aap tools repo add <path>` 和 `aap tools enable`。`npm run dev` 启动的 TUI 会显示 `tools` 和 `local-repo` 是否就绪。这些工具只读且有边界：列文件、搜索文本、读取有限文件片段，并可选运行 allowlist 中完全匹配的验证命令。它会硬排除 `.git`、`dist`、`assets`、`node_modules`、Python 环境、缓存、生成产物和常见密钥文件。如果模型没有通过这些工具给出文件、行号或测试输出证据就报告代码缺陷，应视为证据不足。
 
+## 源码审计的最终详细结论在哪里看？
+
+TUI 顶部摘要故意只放短结论。run 完成后，它会显示 `完整报告` 路径，文件在 `~/.aap/runs/<runId>.md`。这个 Markdown 报告包含完整最终结论、证据链、结构化黑板、全部挑刺、用户 claim 裁决、工具调用摘要和每个模型最终回答。HTTP 响应里同一个位置会放在 `x_adversarial.reportPath`。
+
 ## 用户意见能参与对抗吗？
 
 可以。HTTP API 支持 `user_opinion`、`user_evidence`、`x_adversarial.user_opinion`。TUI 里先启动盲答 run，再在选中的 run 上按 `u` 追加用户意见/证据链接。AAP 会把文本拆成 claim，在 `fetch_url` 启用时抓取证据链接，让模型在盲审第一轮之后逐条评审，最终输出采纳 / 反驳 / 部分采纳 / 证据不足。用户意见不会直接获得投票权。

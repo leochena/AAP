@@ -128,6 +128,7 @@ Each demo is a short terminal-style trace of the same protocol: independent answ
 ### Observability (TUI)
 - Live streaming output and token counts per model
 - Final truth-seeking contract summary near the top of the run detail: representative answer, confidence, review state, and stop reason
+- Durable full run report at `~/.aap/runs/<runId>.md`, also shown as `完整报告` in the TUI and as `x_adversarial.reportPath` in API responses
 - Cross-model challenges (type / severity / confidence / cited fragment / reason)
 - **Tool-call panel**: which model called which tool, ok/✗, result preview
 - Structured blackboard panel for per-round claims, registered challenges, consensus risk, identity drift, minority protection, and revision directives
@@ -241,6 +242,8 @@ aap --port 9000          # Override port
 The `n` modal: space to toggle a model selection, Enter to confirm → type the question → Enter to dispatch.
 
 After Enter, AAP runs **preflight** (dedupes endpoints, pings `/v1/models` to verify each chosen model is alive). If anything fails you get three options: drop the failing models, abort, or continue anyway.
+
+Completed runs show a `完整报告` path in the final truth-seeking summary. Open that Markdown file under `~/.aap/runs/` for the full final conclusion, evidence chain, structured blackboard, all peer challenges, user-claim verdicts, tool-call summary, and each model's final output.
 
 ---
 

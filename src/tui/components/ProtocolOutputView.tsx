@@ -9,6 +9,7 @@ interface Props {
   totalRounds?: number;
   roundStopReason?: RunSnapshot['roundStopReason'];
   roundStopDetail?: string;
+  reportPath?: string;
 }
 
 export function ProtocolOutputView({
@@ -18,8 +19,9 @@ export function ProtocolOutputView({
   totalRounds,
   roundStopReason,
   roundStopDetail,
+  reportPath,
 }: Props) {
-  if (!contract && !voting) return null;
+  if (!contract && !voting && !reportPath) return null;
 
   const reviewRequired = contract?.review.required ?? voting?.requiresReview ?? false;
 
@@ -55,6 +57,12 @@ export function ProtocolOutputView({
           轮次: {roundsCompleted}/{totalRounds}
           {roundStopReason ? `，停止原因: ${roundStopReason}` : ''}
           {roundStopDetail ? `，${truncate(roundStopDetail, 120)}` : ''}
+        </Text>
+      )}
+      {reportPath && (
+        <Text>
+          完整报告: <Text color="green">{reportPath}</Text>
+          <Text dimColor>  （包含完整源码缺陷结论、证据、黑板、挑刺和各模型回答）</Text>
         </Text>
       )}
     </Box>

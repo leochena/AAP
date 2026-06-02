@@ -77,6 +77,7 @@ import {
   updateMetrics,
 } from '@/lib/features/audit-metrics';
 import { buildProtocolOutputContract } from '@/lib/features/output-contract';
+import { writeRunReport } from '@/lib/features/run-report';
 import {
   appendProfileEvents,
   buildProfileEventsFromRun,
@@ -429,6 +430,13 @@ export class AdversarialEngine extends EventEmitter {
         roundStopReason,
         roundStopDetail,
       };
+      try {
+        result.reportPath = writeRunReport(this.options.storageDir, result, this.options.request);
+        this.snapshot.reportPath = result.reportPath;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[run ${this.runId}] run report write failed:`, err);
+      }
       this.emitEvent('run-complete', { result });
 
       this.flushAuditMetrics(metrics).catch(err => {

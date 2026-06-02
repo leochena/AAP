@@ -62,6 +62,7 @@ export interface UIRunState {
   roundsCompleted?: number;
   roundStopReason?: RunSnapshot['roundStopReason'];
   roundStopDetail?: string;
+  reportPath?: string;
   toolCalls: UIToolCall[];
   withdrawals: UIWithdrawal[];
 }
@@ -80,6 +81,7 @@ function emptyRunState(snapshot: RunSnapshot): UIRunState {
     modelErrors: {},
     challenges: [],
     startedAt: snapshot.startedAt,
+    reportPath: snapshot.reportPath,
     toolCalls: [],
     withdrawals: [],
   };
@@ -239,6 +241,7 @@ export function useHub(hub: EngineHub) {
           next.roundsCompleted = result.roundsCompleted;
           next.roundStopReason = result.roundStopReason;
           next.roundStopDetail = result.roundStopDetail;
+          next.reportPath = result.reportPath ?? next.reportPath;
           for (const response of result.responses) {
             if (!next.modelIds.includes(response.modelId)) {
               next.modelIds = [...next.modelIds, response.modelId];

@@ -18,6 +18,10 @@ Models can claim they "searched" or "checked" even when they did not call a tool
 
 Yes, but only through the optional local-repo tools. In the TUI, press `[r]` to add a source path interactively; from CLI, run `aap tools repo add <path>` and `aap tools enable`. The TUI started by `npm run dev` shows whether `tools` and `local-repo` are ready. The tools are read-only and bounded: they list files, search text, read limited file snippets, and optionally run exact allowlisted validation commands. They hard-exclude `.git`, `dist`, `assets`, `node_modules`, Python environments, caches, generated outputs, and common secret files. If a model reports a code defect without file/line/test evidence from these tools, treat it as unresolved.
 
+## Where do I see the full final result for a code audit?
+
+The TUI top summary is intentionally compact. After a run completes, it shows a `完整报告` path pointing to `~/.aap/runs/<runId>.md`. That Markdown report contains the full final conclusion, evidence chain, structured blackboard, all challenges, user-claim verdicts, tool-call summary, and every model's final output. HTTP responses expose the same location as `x_adversarial.reportPath`.
+
 ## Can user opinions participate in the debate?
 
 Yes. Pass `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` through the HTTP API. In the TUI, start the blind run first, then press `u` on the selected run to add user opinion / evidence links. AAP parses the text into claims, fetches evidence URLs when `fetch_url` is enabled, asks models to review each claim after the blind first pass, and returns adopted / rejected / partial / unresolved verdicts. User opinion never receives direct voting power.

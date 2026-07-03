@@ -132,7 +132,7 @@ export interface ModelResponse {
   error?: string;
   thinkingBlocks?: ThinkingBlock[];
   /** 模型在生成阶段调用的工具列表（仅 OpenAI tool-calling 通路填充） */
-  toolCalls?: Array<{ name: string; ok: boolean }>;
+  toolCalls?: Array<{ name: string; ok: boolean; error?: string }>;
   /** 模型本轮是否主动认错退出（concede 工具） */
   withdrawn?: boolean;
   withdrawnReason?: string;
@@ -545,6 +545,15 @@ export interface RunRequest {
    * 引擎会先完成盲审式模型回答，再让模型评审这些 claim。
    */
   userOpinion?: UserOpinionInput;
+  /**
+   * User-facing generation parameters from compatible HTTP APIs. These apply
+   * to the main answer generation phase only; adjudication phases keep their
+   * fixed low-budget settings for stable parsing.
+   */
+  generation?: {
+    maxTokens?: number;
+    temperature?: number;
+  };
 }
 
 export interface RunSnapshot {

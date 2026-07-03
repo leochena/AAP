@@ -267,14 +267,16 @@ curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   -d '{
     "model": "adversarial:vote",
     "messages": [{"role":"user","content":"Explain entropy in one sentence"}],
+    "max_tokens": 1024,
+    "temperature": 0.2,
     "user_opinion": "The answer should mention microstates.",
     "user_evidence": ["https://example.com/evidence"]
   }'
 ```
 
-The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, structured deliberation, challenges, voting, user-opinion verdicts, evidence results, adoption matrix, and tool-call logs.
+The response is a standard OpenAI Chat Completion plus an `x_adversarial` extension carrying responses, structured deliberation, challenges, voting, user-opinion verdicts, evidence results, adoption matrix, and tool-call logs. `max_tokens` and `temperature` are forwarded to the main answer-generation phase across OpenAI-compatible, Anthropic, and Ollama upstreams; adjudication phases keep their bounded parser-oriented settings.
 
-Streaming: add `"stream": true`, get standard OpenAI SSE; per-model output is separated with `## modelId` markdown headers; the final chunk carries `x_adversarial`, then `data: [DONE]`.
+Streaming: add `"stream": true`, get standard OpenAI SSE; per-model output is separated with `## modelId` markdown headers; the final chunk carries `x_adversarial`, then `data: [DONE]`. If the client disconnects before completion, the linked run is aborted instead of continuing in the background.
 
 ### Anthropic-compatible
 
@@ -285,11 +287,12 @@ curl -X POST http://127.0.0.1:28788/v1/messages \
   -d '{
     "model": "adversarial:debate",
     "max_tokens": 1024,
+    "temperature": 0.2,
     "messages": [{"role":"user","content":"1+1=?"}]
   }'
 ```
 
-Returns a standard Anthropic Message (`type: "message"`, `content: [{type:"text",...}]`) with `x_adversarial`. Streaming follows Anthropic's `message_start` / `content_block_delta` / `message_delta` / `message_stop` protocol.
+Returns a standard Anthropic Message (`type: "message"`, `content: [{type:"text",...}]`) with `x_adversarial`. Streaming follows Anthropic's `message_start` / `content_block_delta` / `message_delta` / `message_stop` protocol, with the terminal metadata including the same response, tool-call, challenge, voting, user-opinion, protocol-output, and metrics fields as the sync response.
 
 ### Plug into Claude Code
 

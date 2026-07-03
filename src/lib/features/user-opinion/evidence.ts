@@ -4,6 +4,7 @@ export interface EvidenceVerifierOptions {
   maxBytes?: number;
   timeoutMs?: number;
   fetcher?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 export async function verifyEvidenceUrls(
@@ -27,6 +28,12 @@ export async function verifyEvidenceUrl(
   const fetcher = opts.fetcher ?? fetch;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new Error(`fetch timeout ${timeoutMs}ms`)), timeoutMs);
+  const abortFromParent = () => ctrl.abort(opts.signal!.reason);
+  if (opts.signal?.aborted) {
+    abortFromParent();
+  } else if (opts.signal) {
+    opts.signal.addEventListener('abort', abortFromParent, { once: true });
+  }
 
   try {
     const response = await fetcher(url, { method: 'GET', signal: ctrl.signal, redirect: 'follow' });
@@ -72,6 +79,7 @@ export async function verifyEvidenceUrl(
     };
   } finally {
     clearTimeout(timer);
+    if (opts.signal) opts.signal.removeEventListener('abort', abortFromParent);
   }
 }
 

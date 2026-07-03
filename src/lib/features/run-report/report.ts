@@ -78,7 +78,10 @@ export function buildRunReportMarkdown(result: RunResult, request: RunRequest): 
       if (toolCalls.length > 0) {
         header.push('', 'Tool calls:');
         for (const call of toolCalls) {
-          header.push(`- ${safe(call.name)}: ${call.ok ? 'ok' : 'failed'}`);
+          header.push(
+            `- ${safe(call.name)}: ${call.ok ? 'ok' : 'failed'}` +
+              (call.error ? ` | ${safe(call.error)}` : '')
+          );
         }
       }
       header.push('', fenced(response.content || '(empty response)'));

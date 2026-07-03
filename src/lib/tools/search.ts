@@ -54,7 +54,8 @@ export function makeSearchHandler(opts: SearchOptions): ToolHandler {
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(new Error(`search timeout ${timeoutMs}ms`)), timeoutMs);
-    if (ctx.signal) ctx.signal.addEventListener('abort', () => ctrl.abort(ctx.signal!.reason), { once: true });
+    const abortFromParent = () => ctrl.abort(ctx.signal!.reason);
+    if (ctx.signal) ctx.signal.addEventListener('abort', abortFromParent, { once: true });
 
     const url = `${root}/search?q=${encodeURIComponent(query)}&format=json&engines=${encodeURIComponent(engines)}`;
 
@@ -91,6 +92,7 @@ export function makeSearchHandler(opts: SearchOptions): ToolHandler {
       };
     } finally {
       clearTimeout(timer);
+      if (ctx.signal) ctx.signal.removeEventListener('abort', abortFromParent);
     }
   };
 }

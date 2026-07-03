@@ -39,11 +39,11 @@ Both the TUI and HTTP routes call `hub.startRun(...)`. Engine events (`run-start
 ### 2.2 Protocol Clients (`src/lib/clients/`)
 | File | Protocol |
 | :--- | :--- |
-| `openai-protocol.ts` | `POST /chat/completions` + SSE `data: ...` parsing. Used for any OpenAI-compatible upstream (incl. local multi-model endpoints). |
-| `anthropic-protocol.ts` | `POST /v1/messages` + Anthropic event-typed SSE (`message_start`, `content_block_delta`, `message_delta`). |
-| `ollama-protocol.ts` | Native Ollama `/api/chat` ndjson. |
+| `openai-protocol.ts` | `POST /chat/completions` + SSE `data: ...` parsing. Used for any OpenAI-compatible upstream (incl. local multi-model endpoints). Supports request-scoped `max_tokens` and `temperature` during the main generation phase. |
+| `anthropic-protocol.ts` | `POST /v1/messages` + Anthropic event-typed SSE (`message_start`, `content_block_delta`, `message_delta`). Supports request-scoped `max_tokens` and `temperature` during the main generation phase. |
+| `ollama-protocol.ts` | Native Ollama `/api/chat` ndjson. Maps generation settings to Ollama `options.num_predict` and `options.temperature`. |
 
-Each exports a streaming function and a `*NonStream` variant.
+Each exports a streaming function and a `*NonStream` variant. Streaming parsers must process a final SSE/ndjson frame even when the upstream closes without a trailing newline.
 
 ### 2.3 Feature Modules (`src/lib/features/`)
 Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `modelId: string` (no provider enum).
@@ -114,13 +114,14 @@ Self-contained capabilities consumed by `AdversarialEngine`. Each is keyed by `m
 1. External agent → `POST /v1/chat/completions` with `model: "adversarial:vote"`.
 2. Route parses `model` → `modelIds` + `mode`.
 3. Optional `user_opinion`, `user_evidence`, or `x_adversarial.user_opinion` is normalized into `RunRequest.userOpinion`.
-4. Calls `hub.startRun({ question, modelIds, source: 'http-openai', mode, userOpinion? })`.
-5. The structured blackboard is emitted after each generation phase and updated again after auto-challenge; stream text and final `x_adversarial.structuredDeliberation` include the accumulated rounds, claims, challenge refs, events, and directives.
-6. User evidence URLs are verified during the user-opinion phase and included in claim review prompts.
-7. SSE handler subscribes to that `runId`'s events, translates them into OpenAI chunks.
-8. Final chunk includes `x_adversarial` metadata; closes with `data: [DONE]`.
-9. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
-10. Run metadata is converted into model-profile events. The next run uses stored profile scores plus current sycophancy and identity-drift signals to adjust voting weights.
+4. Compatible generation parameters (`max_tokens`, `temperature`) are normalized into `RunRequest.generation` for the main answer phase only.
+5. Calls `hub.startRun({ question, modelIds, source: 'http-openai', mode, userOpinion?, generation? }, signal)` with a linked request abort signal. If the HTTP client disconnects before the stream completes, the engine aborts the run and does not emit `run-complete`.
+6. The structured blackboard is emitted after each generation phase and updated again after auto-challenge; stream text and final `x_adversarial.structuredDeliberation` include the accumulated rounds, claims, challenge refs, events, and directives.
+7. User evidence URLs are verified during the user-opinion phase and included in claim review prompts. The verification fetches are wired to the same abort signal.
+8. SSE handler subscribes to that `runId`'s events, translates them into OpenAI or Anthropic chunks.
+9. Final chunks include `x_adversarial` metadata, including per-response `toolCalls` entries with `{ name, ok, error? }`; OpenAI streams then close with `data: [DONE]`.
+10. The TUI is also subscribed to the same hub, so the run appears in its list in real time.
+11. Run metadata is converted into model-profile events. The next run uses stored profile scores plus current sycophancy and identity-drift signals to adjust voting weights.
 
 ### 3.3 Adaptive round control
 `adversarial.maxRounds` is a safety cap, not a claim that truth has been reached. The engine runs at least `adversarial.roundControl.minRounds`; after that it continues while configured continuation signals remain:
@@ -166,6 +167,17 @@ interface ModelConfig {
   model: string;                // upstream model name
   weight?: number;              // voting weight (default 1.0)
   enabled: boolean;
+}
+
+interface RunRequest {
+  question: string;
+  modelIds: string[];
+  source: 'tui-input' | 'http-openai' | 'http-anthropic';
+  userOpinion?: UserOpinionInput;
+  generation?: {
+    maxTokens?: number;
+    temperature?: number;
+  };
 }
 ```
 

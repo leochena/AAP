@@ -270,14 +270,16 @@ curl -X POST http://127.0.0.1:28788/v1/chat/completions \
   -d '{
     "model": "adversarial:vote",
     "messages": [{"role":"user","content":"用一句话解释熵"}],
+    "max_tokens": 1024,
+    "temperature": 0.2,
     "user_opinion": "答案应该提到微观状态。",
     "user_evidence": ["https://example.com/evidence"]
   }'
 ```
 
-响应是标准 OpenAI Chat Completion 格式，多了一个 `x_adversarial` 扩展字段（含 responses / structuredDeliberation / challenges / voting / 用户意见裁决 / 证据抓取结果 / 采纳矩阵 / 工具调用日志）。
+响应是标准 OpenAI Chat Completion 格式，多了一个 `x_adversarial` 扩展字段（含 responses / structuredDeliberation / challenges / voting / 用户意见裁决 / 证据抓取结果 / 采纳矩阵 / 工具调用日志）。`max_tokens` 和 `temperature` 会透传到 OpenAI-compatible、Anthropic、Ollama 上游的主回答生成阶段；裁决/解析阶段仍使用固定的低预算设置，保证结构化解析稳定。
 
-流式：加 `"stream": true`，按标准 OpenAI SSE 输出，每个模型用 `## modelId` markdown header 分隔；最后一个 chunk 携带 `x_adversarial`，再发 `data: [DONE]`。
+流式：加 `"stream": true`，按标准 OpenAI SSE 输出，每个模型用 `## modelId` markdown header 分隔；最后一个 chunk 携带 `x_adversarial`，再发 `data: [DONE]`。如果客户端在完成前断开连接，对应 run 会被中止，不会继续在后台跑完。
 
 ### Anthropic 兼容
 
@@ -288,11 +290,12 @@ curl -X POST http://127.0.0.1:28788/v1/messages \
   -d '{
     "model": "adversarial:debate",
     "max_tokens": 1024,
+    "temperature": 0.2,
     "messages": [{"role":"user","content":"1+1=?"}]
   }'
 ```
 
-返回标准 Anthropic Message 格式（`type: "message"`, `content: [{type:"text",...}]`），同样带 `x_adversarial`。流式遵循 Anthropic 的 `message_start` / `content_block_delta` / `message_delta` / `message_stop` 协议。
+返回标准 Anthropic Message 格式（`type: "message"`, `content: [{type:"text",...}]`），同样带 `x_adversarial`。流式遵循 Anthropic 的 `message_start` / `content_block_delta` / `message_delta` / `message_stop` 协议，终止元数据包含和同步响应一致的 response、工具调用、挑刺、投票、用户意见、协议输出和 metrics 字段。
 
 ### 接入 Claude Code
 

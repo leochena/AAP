@@ -84,8 +84,55 @@ describe('streamWithTools', () => {
     expect(callCount).toBe(2);
     expect(result.content).toBe('Final after tool');
     expect(result.toolCallsLog).toHaveLength(1);
-    expect(result.toolCallsLog[0].name).toBe('echo');
-    expect((result.toolCallsLog[0].args as any).text).toBe('hi');
+    expect(result.toolCallsLog[0].call.name).toBe('echo');
+    expect((result.toolCallsLog[0].call.args as any).text).toBe('hi');
+    expect(result.toolCallsLog[0].ok).toBe(true);
+  });
+
+  it('records failed tool dispatches as failed audit entries', async () => {
+    let callCount = 0;
+    globalThis.fetch = vi.fn(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return streamResponse(sse([
+          { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'fail', arguments: '{}' } }] } }] },
+          { choices: [{ finish_reason: 'tool_calls' }] },
+        ]));
+      }
+      return streamResponse(sse([
+        { choices: [{ delta: { content: 'Final after failure' } }] },
+        { choices: [{ finish_reason: 'stop' }] },
+      ]));
+    }) as any;
+
+    const registry = new ToolRegistry();
+    registry.register(
+      { name: 'fail', description: 'fail', parameters: {} },
+      async () => ({ id: '', ok: false, error: 'tool exploded' })
+    );
+
+    const onToolCall = vi.fn();
+    const result = await streamWithTools({
+      model,
+      messages: [{ role: 'user', content: 'q' }],
+      tools: [{ name: 'fail', description: 'fail', parameters: {} }],
+      registry,
+      ctx,
+      onToolCall,
+    });
+
+    expect(result.content).toBe('Final after failure');
+    expect(result.toolCallsLog).toEqual([
+      {
+        call: { id: 'call_1', name: 'fail', args: {} },
+        ok: false,
+        error: 'tool exploded',
+      },
+    ]);
+    expect(onToolCall).toHaveBeenCalledWith(
+      { id: 'call_1', name: 'fail', args: {} },
+      { ok: false, error: 'tool exploded' }
+    );
   });
 
   it('stops early when isWithdrawn returns true', async () => {
@@ -117,6 +164,7 @@ describe('streamWithTools', () => {
     // Iteration 1: makes tool call, concede sets withdrawn. Iteration 2 short-circuits.
     expect(callCount).toBe(1);
     expect(result.toolCallsLog).toHaveLength(1);
+    expect(result.toolCallsLog[0].ok).toBe(true);
   });
 
   it('caps at maxIterations', async () => {

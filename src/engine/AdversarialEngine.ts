@@ -253,6 +253,19 @@ export class AdversarialEngine extends EventEmitter {
     this.emit(type, data);
   }
 
+  private assertNotAborted(): void {
+    const signal = this.options.signal;
+    if (!signal?.aborted) return;
+    const reason = signal.reason;
+    const message =
+      reason instanceof Error
+        ? reason.message
+        : typeof reason === 'string'
+          ? reason
+          : 'aborted';
+    throw new Error(`Run aborted: ${message}`);
+  }
+
   async run(): Promise<RunResult> {
     const start = Date.now();
     const maxRounds = Math.max(
@@ -269,6 +282,7 @@ export class AdversarialEngine extends EventEmitter {
     try {
       this.snapshot.phase = 'pending';
       this.emitEvent('run-start', { request: this.options.request, models: this.options.models });
+      this.assertNotAborted();
 
       let excludedResponses: ModelResponse[] = [];
 
@@ -277,6 +291,7 @@ export class AdversarialEngine extends EventEmitter {
       if (this.toolsActive) {
         const selectedCount = this.options.models.length;
         excludedResponses = await this.enforceSearchCapableModels();
+        this.assertNotAborted();
         for (const response of excludedResponses) {
           this.snapshot.responses[response.modelId] = response;
           this.emitEvent('model-complete', { response });
@@ -303,6 +318,7 @@ export class AdversarialEngine extends EventEmitter {
         this.options.adversarialConfig.autoChallenge.enabled;
 
       for (let round = 1; round <= maxRounds; round++) {
+        this.assertNotAborted();
         this.snapshot.currentRound = round;
         this.emitEvent('round-start', { round, totalRounds: maxRounds });
 
@@ -312,6 +328,7 @@ export class AdversarialEngine extends EventEmitter {
 
         const prior = round > 1 ? { responses, challenges, structuredDeliberation } : undefined;
         responses = await this.runGenerating(prior);
+        this.assertNotAborted();
         if (round === 1) {
           blindResponses = responses;
         }
@@ -342,6 +359,7 @@ export class AdversarialEngine extends EventEmitter {
           this.snapshot.phase = 'auto-challenge';
           this.emitEvent('phase-change', { phase: 'auto-challenge' });
           challenges = await this.runAutoChallenge(responses);
+          this.assertNotAborted();
           this.snapshot.challenges = challenges;
           structuredDeliberation = buildStructuredDeliberation({
             question: this.options.request.question,
@@ -377,9 +395,11 @@ export class AdversarialEngine extends EventEmitter {
       // ==== Phase: User Opinion Review ====
       let userOpinion: UserOpinionResult | undefined;
       if (this.options.request.userOpinion) {
+        this.assertNotAborted();
         this.snapshot.phase = 'user-opinion';
         this.emitEvent('phase-change', { phase: 'user-opinion' });
         userOpinion = await this.runUserOpinionReview(blindResponses, responses);
+        this.assertNotAborted();
         this.snapshot.userOpinion = userOpinion;
         this.emitEvent('user-opinion-result', { result: userOpinion });
       }
@@ -390,9 +410,11 @@ export class AdversarialEngine extends EventEmitter {
         this.options.adversarialConfig.voting.enabled;
       let voting: VotingResult | undefined;
       if (enableV && responses.filter(r => !r.error).length >= 2) {
+        this.assertNotAborted();
         this.snapshot.phase = 'voting';
         this.emitEvent('phase-change', { phase: 'voting' });
         voting = await this.runVoting(responses);
+        this.assertNotAborted();
         this.snapshot.voting = voting;
       }
 
@@ -412,10 +434,6 @@ export class AdversarialEngine extends EventEmitter {
       this.snapshot.roundStopReason = roundStopReason;
       this.snapshot.roundStopDetail = roundStopDetail;
 
-      this.snapshot.phase = 'complete';
-      this.snapshot.finishedAt = Date.now();
-      this.emitEvent('phase-change', { phase: 'complete' });
-
       const result: RunResult = {
         runId: this.runId,
         responses: [...excludedResponses, ...responses],
@@ -430,13 +448,18 @@ export class AdversarialEngine extends EventEmitter {
         roundStopReason,
         roundStopDetail,
       };
+      this.assertNotAborted();
       try {
         result.reportPath = writeRunReport(this.options.storageDir, result, this.options.request);
         this.snapshot.reportPath = result.reportPath;
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(`[run ${this.runId}] run report write failed:`, err);
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to write required run report: ${message}`);
       }
+
+      this.snapshot.phase = 'complete';
+      this.snapshot.finishedAt = Date.now();
+      this.emitEvent('phase-change', { phase: 'complete' });
       this.emitEvent('run-complete', { result });
 
       this.flushAuditMetrics(metrics).catch(err => {
@@ -652,6 +675,7 @@ export class AdversarialEngine extends EventEmitter {
     }
   ): Promise<ModelResponse[]> {
     const { request, models, signal } = this.options;
+    const generation = request.generation;
     const sharedMessages: Message[] = [
       ...(request.history ?? []),
       { role: 'user', content: request.question },
@@ -697,6 +721,7 @@ export class AdversarialEngine extends EventEmitter {
 
         const start = Date.now();
         let contentSoFar = '';
+        this.assertNotAborted();
         const onDelta = (delta: string) => {
           contentSoFar += delta;
           const data: ChunkEventData = {
@@ -717,6 +742,8 @@ export class AdversarialEngine extends EventEmitter {
               ctx: { modelId: model.id, runId: this.runId, signal },
               signal,
               maxIterations: this.options.adversarialConfig.tools.maxToolCallsPerGeneration,
+              maxTokens: generation?.maxTokens,
+              temperature: generation?.temperature,
               onDelta,
               onToolCall: (call, dispatched) => {
                 this.emitEvent('tool-call', {
@@ -735,7 +762,11 @@ export class AdversarialEngine extends EventEmitter {
               tokensIn: result.tokensIn,
               tokensOut: result.tokensOut,
               durationMs: Date.now() - start,
-              toolCalls: result.toolCallsLog.map(c => ({ name: c.name, ok: true })),
+              toolCalls: result.toolCallsLog.map(entry => ({
+                name: entry.call.name,
+                ok: entry.ok,
+                error: entry.error,
+              })),
               withdrawn: conc !== undefined,
               withdrawnReason: conc?.reason,
               withdrawnDeferTo: conc?.deferTo,
@@ -755,11 +786,14 @@ export class AdversarialEngine extends EventEmitter {
               messages,
               signal,
               onDelta,
+              maxTokens: generation?.maxTokens,
+              temperature: generation?.temperature,
             });
             this.emitEvent('model-complete', { response });
             return response;
           }
         } catch (err) {
+          this.assertNotAborted();
           const resp: ModelResponse = {
             modelId: model.id,
             content: contentSoFar,
@@ -790,6 +824,7 @@ export class AdversarialEngine extends EventEmitter {
         if (target.modelId === challenger.modelId) continue;
         tasks.push(
           this.singleChallenge(challengerModel, challenger.modelId, target).catch(err => {
+            this.assertNotAborted();
             // eslint-disable-next-line no-console
             console.warn(
               `[run ${this.runId}] challenge ${challenger.modelId} → ${target.modelId} failed:`,
@@ -903,6 +938,7 @@ export class AdversarialEngine extends EventEmitter {
         };
         return vote;
       } catch (err) {
+        this.assertNotAborted();
         // eslint-disable-next-line no-console
         console.warn(
           `[run ${this.runId}] vote call from ${r.modelId} failed:`,
@@ -999,6 +1035,7 @@ export class AdversarialEngine extends EventEmitter {
               };
             })
             .catch(err => {
+              this.assertNotAborted();
               // eslint-disable-next-line no-console
               console.warn(
                 `[run ${this.runId}] user-claim review from ${model.id} failed:`,
@@ -1035,6 +1072,7 @@ export class AdversarialEngine extends EventEmitter {
     return verifyEvidenceUrls(uniqueUrls, {
       maxBytes: cfg.maxBytes,
       timeoutMs: cfg.timeoutMs,
+      signal: this.options.signal,
     });
   }
 

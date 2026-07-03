@@ -8,7 +8,7 @@ on:
 
 jobs:
   type-check-and-lint:
-    name: Type Check & Lint
+    name: Type Check
     runs-on: ubuntu-latest
 
     steps:
@@ -26,10 +26,6 @@ jobs:
 
       - name: TypeScript type check
         run: npm run type-check
-
-      - name: ESLint check
-        run: npm run lint
-        continue-on-error: true
 
   test:
     name: Tests
@@ -50,7 +46,3 @@ jobs:
 
       - name: Run tests
         run: npm test
-
-      - name: Coverage report
-        run: npm run test:coverage
-        continue-on-error: true

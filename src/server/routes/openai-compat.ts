@@ -92,12 +92,15 @@ export function createOpenAIRoutes(hub: EngineHub): Hono {
       enableAutoChallenge: parsed.mode !== 'passthrough',
       enableVoting: parsed.mode !== 'passthrough',
       userOpinion,
+      generation: parseGeneration(body.max_tokens, body.temperature),
     };
 
     let started: ReturnType<EngineHub['startRun']>;
+    const requestAbort = createLinkedAbortController(c.req.raw.signal);
     try {
-      started = hub.startRun(runRequest);
+      started = hub.startRun(runRequest, requestAbort.signal);
     } catch (err) {
+      requestAbort.cleanup();
       return c.json(
         { error: { message: err instanceof Error ? err.message : String(err) } },
         400
@@ -119,14 +122,25 @@ export function createOpenAIRoutes(hub: EngineHub): Hono {
       c.header('Connection', 'keep-alive');
       return stream(c, async stream => {
         const reader = sseStream.getReader();
+        let streamEnded = false;
         try {
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+              streamEnded = true;
+              break;
+            }
             await stream.write(value);
           }
         } finally {
+          if (!streamEnded) {
+            await reader.cancel().catch(() => {});
+          }
           reader.releaseLock();
+          if (!streamEnded && !requestAbort.signal.aborted) {
+            requestAbort.abort(new Error('client disconnected before stream completed'));
+          }
+          requestAbort.cleanup();
         }
       });
     }
@@ -136,11 +150,13 @@ export function createOpenAIRoutes(hub: EngineHub): Hono {
     try {
       result = await started.promise;
     } catch (err) {
+      requestAbort.cleanup();
       return c.json(
         { error: { message: err instanceof Error ? err.message : String(err) } },
         500
       );
     }
+    requestAbort.cleanup();
     return c.json(buildOpenAIFinalResponse(body.model, parsed.mode, result));
   });
 
@@ -233,6 +249,7 @@ function buildOpenAIFinalResponse(
       tokensOut: r.tokensOut,
       durationMs: r.durationMs,
       error: r.error,
+      toolCalls: r.toolCalls,
     })),
     challenges: result.challenges,
     structuredDeliberation: result.structuredDeliberation,
@@ -311,5 +328,44 @@ function parseUserOpinion(body: ChatCompletionRequest): UserOpinionInput | undef
   return {
     text: opinion?.text ?? '用户提供了证据链接，请核验这些证据是否支持最终结论。',
     evidenceUrls: [...(opinion?.evidenceUrls ?? []), ...(evidence ?? [])],
+  };
+}
+
+function parseGeneration(
+  rawMaxTokens?: number,
+  rawTemperature?: number
+): RunRequest['generation'] | undefined {
+  const generation: NonNullable<RunRequest['generation']> = {};
+  if (typeof rawMaxTokens === 'number' && Number.isFinite(rawMaxTokens) && rawMaxTokens > 0) {
+    generation.maxTokens = Math.floor(rawMaxTokens);
+  }
+  if (typeof rawTemperature === 'number' && Number.isFinite(rawTemperature)) {
+    generation.temperature = rawTemperature;
+  }
+  return Object.keys(generation).length > 0 ? generation : undefined;
+}
+
+function createLinkedAbortController(signal: AbortSignal): {
+  signal: AbortSignal;
+  abort: (reason?: unknown) => void;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const abortFromRequest = () => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal.reason ?? new Error('client disconnected'));
+    }
+  };
+  if (signal.aborted) {
+    abortFromRequest();
+  } else {
+    signal.addEventListener('abort', abortFromRequest, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    abort: reason => {
+      if (!controller.signal.aborted) controller.abort(reason);
+    },
+    cleanup: () => signal.removeEventListener('abort', abortFromRequest),
   };
 }

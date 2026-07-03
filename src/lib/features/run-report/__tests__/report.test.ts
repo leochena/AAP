@@ -39,6 +39,7 @@ describe('run report', () => {
           tokensIn: 7,
           tokensOut: 13,
           durationMs: 90,
+          toolCalls: [{ name: 'fetch_url', ok: false, error: 'HTTP 404 Not Found' }],
         },
       ],
       challenges: [
@@ -80,6 +81,7 @@ describe('run report', () => {
     expect(report).toContain('src/app.ts:42');
     expect(report).toContain('Severity needs proof from a failing test.');
     expect(report).toContain('repo_read_file: ok');
+    expect(report).toContain('fetch_url: failed | HTTP 404 Not Found');
     expect(report).toContain('[REDACTED_API_KEY]');
     expect(report).not.toContain(fakeSecret);
   });

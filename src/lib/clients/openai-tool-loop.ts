@@ -20,17 +20,26 @@ export interface StreamWithToolsOptions {
   ctx: ToolCtx;
   signal?: AbortSignal;
   maxIterations?: number;
+  maxTokens?: number;
+  temperature?: number;
   onDelta?: (delta: string) => void;
   onToolCall?: (call: ToolCall, result: { ok: boolean; content?: string; error?: string }) => void;
   /** Concession 工具被调用后，告知调用方"该模型已退出"，方便引擎短路。 */
   isWithdrawn?: () => boolean;
 }
 
+export interface ToolCallLogEntry {
+  call: ToolCall;
+  ok: boolean;
+  content?: string;
+  error?: string;
+}
+
 export interface StreamWithToolsResult {
   content: string;
   tokensIn: number;
   tokensOut: number;
-  toolCallsLog: ToolCall[];
+  toolCallsLog: ToolCallLogEntry[];
   /** 因 maxIterations 触顶或外部中止而强行结束 */
   truncated: boolean;
 }
@@ -47,7 +56,19 @@ function safeJsonParse(s: string): unknown {
 }
 
 export async function streamWithTools(opts: StreamWithToolsOptions): Promise<StreamWithToolsResult> {
-  const { model, tools, registry, ctx, signal, maxIterations = 6, onDelta, onToolCall, isWithdrawn } = opts;
+  const {
+    model,
+    tools,
+    registry,
+    ctx,
+    signal,
+    maxIterations = 6,
+    maxTokens,
+    temperature,
+    onDelta,
+    onToolCall,
+    isWithdrawn,
+  } = opts;
 
   // Internally we work with wire-format (messages + tool roles).
   const wire: WireMessage[] = opts.messages.map(m => ({ role: m.role, content: m.content }));
@@ -55,7 +76,7 @@ export async function streamWithTools(opts: StreamWithToolsOptions): Promise<Str
   let totalIn = 0;
   let totalOut = 0;
   let finalContent = '';
-  const callsLog: ToolCall[] = [];
+  const callsLog: ToolCallLogEntry[] = [];
   let truncated = false;
 
   for (let iter = 0; iter < maxIterations; iter++) {
@@ -67,6 +88,8 @@ export async function streamWithTools(opts: StreamWithToolsOptions): Promise<Str
       tools,
       signal,
       onDelta,
+      maxTokens,
+      temperature,
     });
 
     totalIn += result.tokensIn;
@@ -93,8 +116,10 @@ export async function streamWithTools(opts: StreamWithToolsOptions): Promise<Str
     // 顺序分派工具，把每个 result 作为一条 role:'tool' 消息追加
     for (const raw of result.toolCalls) {
       const call: ToolCall = { id: raw.id, name: raw.name, args: safeJsonParse(raw.argsJson) };
-      callsLog.push(call);
       const dispatchResult = await registry.dispatch(call, ctx);
+      callsLog.push(dispatchResult.ok
+        ? { call, ok: true, content: dispatchResult.content }
+        : { call, ok: false, error: dispatchResult.error });
       onToolCall?.(call, dispatchResult.ok
         ? { ok: true, content: dispatchResult.content }
         : { ok: false, error: dispatchResult.error });
@@ -126,6 +151,8 @@ export async function streamWithTools(opts: StreamWithToolsOptions): Promise<Str
       messages: wire as unknown as Message[],
       signal,
       onDelta,
+      maxTokens,
+      temperature,
     });
     totalIn += result.tokensIn;
     totalOut += result.tokensOut;

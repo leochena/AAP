@@ -9,7 +9,7 @@ import type { CallResult, StreamCallOptions } from './openai-protocol';
 export async function callAnthropicProtocol(
   options: StreamCallOptions
 ): Promise<CallResult> {
-  const { model, messages, signal, onDelta, maxTokens = 4096 } = options;
+  const { model, messages, signal, onDelta, maxTokens = 4096, temperature } = options;
 
   if (!model.apiKey) {
     throw new Error(`Model "${model.id}": API key is required for Anthropic protocol`);
@@ -32,6 +32,7 @@ export async function callAnthropicProtocol(
     stream: true,
     max_tokens: maxTokens,
   };
+  if (temperature !== undefined) body.temperature = temperature;
   if (systemPrompt) body.system = systemPrompt;
 
   const response = await fetch(endpoint, {
@@ -63,6 +64,29 @@ export async function callAnthropicProtocol(
   let tokensIn = 0;
   let tokensOut = 0;
 
+  const processLine = (rawLine: string) => {
+    const line = rawLine.trim();
+    if (!line || !line.startsWith('data: ')) return;
+    const payload = line.slice(6);
+
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed.type === 'message_start') {
+        tokensIn = parsed.message?.usage?.input_tokens ?? 0;
+      } else if (parsed.type === 'content_block_delta') {
+        const delta = parsed.delta?.text;
+        if (typeof delta === 'string' && delta.length > 0) {
+          fullContent += delta;
+          onDelta?.(delta);
+        }
+      } else if (parsed.type === 'message_delta') {
+        tokensOut = parsed.usage?.output_tokens ?? tokensOut;
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -72,27 +96,12 @@ export async function callAnthropicProtocol(
     buffer = lines.pop() ?? '';
 
     for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line || !line.startsWith('data: ')) continue;
-      const payload = line.slice(6);
-
-      try {
-        const parsed = JSON.parse(payload);
-        if (parsed.type === 'message_start') {
-          tokensIn = parsed.message?.usage?.input_tokens ?? 0;
-        } else if (parsed.type === 'content_block_delta') {
-          const delta = parsed.delta?.text;
-          if (typeof delta === 'string' && delta.length > 0) {
-            fullContent += delta;
-            onDelta?.(delta);
-          }
-        } else if (parsed.type === 'message_delta') {
-          tokensOut = parsed.usage?.output_tokens ?? tokensOut;
-        }
-      } catch {
-        // ignore
-      }
+      processLine(rawLine);
     }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    for (const rawLine of buffer.split('\n')) processLine(rawLine);
   }
 
   if (tokensIn === 0 && tokensOut === 0) {
@@ -107,7 +116,7 @@ export async function callAnthropicProtocol(
 export async function callAnthropicProtocolNonStream(
   model: ModelConfig,
   messages: Message[],
-  options: { signal?: AbortSignal; maxTokens?: number } = {}
+  options: { signal?: AbortSignal; maxTokens?: number; temperature?: number } = {}
 ): Promise<CallResult> {
   if (!model.apiKey) {
     throw new Error(`Model "${model.id}": API key is required for Anthropic protocol`);
@@ -129,6 +138,7 @@ export async function callAnthropicProtocolNonStream(
     stream: false,
     max_tokens: options.maxTokens ?? 4096,
   };
+  if (options.temperature !== undefined) body.temperature = options.temperature;
   if (systemPrompt) body.system = systemPrompt;
 
   const response = await fetch(endpoint, {

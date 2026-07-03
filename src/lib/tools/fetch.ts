@@ -58,7 +58,8 @@ export function makeFetchUrlHandler(opts: FetchUrlOptions = {}): ToolHandler {
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(new Error(`fetch timeout ${timeoutMs}ms`)), timeoutMs);
-    if (ctx.signal) ctx.signal.addEventListener('abort', () => ctrl.abort(ctx.signal!.reason), { once: true });
+    const abortFromParent = () => ctrl.abort(ctx.signal!.reason);
+    if (ctx.signal) ctx.signal.addEventListener('abort', abortFromParent, { once: true });
 
     try {
       const response = await fetch(url, { method: 'GET', signal: ctrl.signal, redirect: 'follow' });
@@ -86,6 +87,7 @@ export function makeFetchUrlHandler(opts: FetchUrlOptions = {}): ToolHandler {
       };
     } finally {
       clearTimeout(timer);
+      if (ctx.signal) ctx.signal.removeEventListener('abort', abortFromParent);
     }
   };
 }

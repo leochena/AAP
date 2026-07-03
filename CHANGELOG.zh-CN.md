@@ -8,6 +8,19 @@
 
 ## [未发布]
 
+### 新增
+- OpenAI-compatible 和 Anthropic-compatible HTTP 路由现在接收 `max_tokens` / `temperature`，并将它们透传到 OpenAI、Anthropic、Ollama 协议客户端的主回答生成阶段。
+- 最终 `x_adversarial` 元数据和持久化 run report 现在会记录工具调用失败及错误信息，不再只记录成功工具名。
+- 新增兼容路由生成参数、SSE 终止元数据、无尾随换行的流式尾帧、必需 run report 写入失败等回归覆盖。
+
+### 修复
+- 流式协议客户端现在能处理上游关闭连接前没有尾随换行的最后一个 OpenAI SSE、Anthropic SSE 或 Ollama ndjson frame。
+- HTTP 流式客户端提前断开时，会把 abort signal 传到引擎生成、工具 fetch/search 和用户证据验证流程，不再让 run 留在后台继续执行。
+- run report 写入失败会让本次 run 失败，且不会发出 `run-complete`，避免“完成但缺少必需报告”的状态。
+
+### 变更
+- CI 现在只运行当前仓库实际存在的 type-check 和 Vitest 命令，不再包含缺失的 lint / coverage 步骤。
+
 ### 计划中
 - Anthropic / Ollama tool-calling 协议适配
 - 挑刺阶段也允许调用工具，让 challenger 给出证据

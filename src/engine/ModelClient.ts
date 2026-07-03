@@ -25,6 +25,7 @@ export interface ModelStreamOptions {
   signal?: AbortSignal;
   onDelta?: (delta: string) => void;
   maxTokens?: number;
+  temperature?: number;
 }
 
 export async function streamModel(
@@ -73,7 +74,7 @@ export async function streamModel(
 export async function callModelNonStream(
   model: ModelConfig,
   messages: Message[],
-  options: { signal?: AbortSignal; maxTokens?: number } = {}
+  options: { signal?: AbortSignal; maxTokens?: number; temperature?: number } = {}
 ): Promise<CallResult> {
   switch (model.protocol) {
     case 'openai':

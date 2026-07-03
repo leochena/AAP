@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- OpenAI-compatible and Anthropic-compatible HTTP routes now accept `max_tokens` and `temperature` and forward them to the main generation phase across OpenAI, Anthropic, and Ollama protocol clients.
+- Final `x_adversarial` response metadata and durable run reports now include tool-call failures with error text, not just successful tool names.
+- Regression coverage for compatible-route generation parameters, SSE terminal metadata, final streaming frames without trailing newlines, and required run-report writes.
+
+### Fixed
+- Streaming protocol clients now process the final OpenAI SSE, Anthropic SSE, or Ollama ndjson frame when an upstream closes without a trailing newline.
+- HTTP streaming disconnects now propagate an abort signal through engine generation, tool fetch/search calls, and user-evidence verification instead of leaving the run active in the background.
+- A run report write failure now fails the run before `run-complete` instead of silently reporting completion without the required report.
+
+### Changed
+- CI now runs the available type-check and Vitest commands directly, without non-existent lint or coverage steps.
+
 ### Planned
 - Anthropic / Ollama tool-calling protocol adapters
 - Tool-calling during challenge phase (challengers cite evidence)
